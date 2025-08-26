@@ -1,0 +1,482 @@
+body {
+    font-family: sans-serif;
+    margin: 0;
+    background: #f7f7f7;
+    color: #222
+}
+
+header {
+    background: #1976d2;
+    color: #fff;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between
+}
+
+h1 {
+    font-size: 20px;
+    margin: 0
+}
+
+h1.logo {
+    display: flex;
+    align-items: baseline;
+    margin: 0;
+}
+
+h1.logo span {
+    margin-left: 10px;
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 2px;
+    color: #fff;
+    /* ロゴ横にテキストを残す場合 */
+}
+
+.logo img {
+    max-height: 40px;
+}
+
+nav button {
+    min-width: 60px;
+    width: 200px;
+    margin-left: 8px;
+    padding: 8px 12px;
+    border: 0;
+    border-radius: 8px;
+    background: #fff;
+    color: #1976d2;
+    cursor: pointer
+}
+
+#btn-modal-delete {
+    color: #333333;
+    background-color: #FFEBEE;
+}
+
+nav button.active {
+    background: #ffd54f;
+    color: #333
+}
+
+.toolbar {
+    margin: 12px 0
+}
+
+.toolbar button {
+    padding: 8px 12px;
+    border: 0;
+    border-radius: 8px;
+    background: #455a64;
+    color: #fff;
+    cursor: pointer
+}
+
+section {
+    padding: 16px;
+}
+
+.hidden {
+    display: none
+}
+
+.form {
+    background: #fff;
+    padding: 12px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .05);
+    margin-bottom: 16px;
+    display: grid;
+    grid-template-columns: clamp(5em, 32vw, 8em) 1fr;
+    gap: 8px 12px
+}
+
+.form.inline {
+    grid-template-columns: repeat(1, 3em 1fr 1fr 1fr 4em 3em 1fr 1fr 1fr);
+}
+
+
+.form.inline select,
+.form.inline input,
+.form.inline .weekday-list {
+    grid-column: span 3 !important;
+    /* 右側3列をまたぐ */
+    padding-right: 3em;
+}
+
+.weekday-list label {
+    padding-right: 10px;
+}
+
+.emp-item {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 20px;
+}
+
+.drag {
+    cursor: grab;
+    margin-right: 8px;
+    user-select: none;
+}
+
+.drag:active {
+    cursor: grabbing;
+}
+
+.sort-handles button {
+    margin-left: 4px;
+}
+
+
+.emp-setting.form.inline {
+    grid-template-columns: repeat(2, 6.5em 1fr);
+}
+
+.addEmployee {
+    grid-column: span 4 !important;
+}
+
+.addrule {
+    grid-column: 1 / -1 !important;
+    align-self: center;
+    justify-self: stretch;
+}
+
+
+@media (max-width: 762px) {
+    .logo img {
+        max-height: 30px;
+    }
+
+    h1.logo {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        margin: 0;
+    }
+
+    h1.logo span {
+        font-size: 10px;
+        letter-spacing: 2.6px;
+    }
+
+    nav button {
+        width: 80px;
+    }
+
+    .form.inline {
+        grid-template-columns: repeat(4, 1fr);
+        /* スマホでは縦並び */
+    }
+
+    .form.inline label {
+        grid-column: span 1;
+        /* 1列分 */
+    }
+
+    .form.inline select,
+    .form.inline input {
+        grid-column: span 3 !important;
+        /* 右側3列をまたぐ */
+        margin-left: -2em;
+    }
+
+    .emp-setting.form.inline {
+        grid-template-columns: repeat(2, 6.5em 1fr);
+    }
+
+    .weekday-list label {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
+    .form.inline .weekday-list {
+        padding-right: 0;
+    }
+
+    .addrule {
+        grid-column: 1fr;
+    }
+
+    .empty {
+        display: none;
+    }
+
+    .modal {
+        z-index: 999;
+    }
+
+    #btn-export-xlsx {
+        display: none;
+    }
+}
+
+.form.inline label {
+    grid-column: span 1;
+}
+
+.form.inline input,
+.form.inline select,
+.form.inline button {
+    grid-column: span 2
+}
+
+.form label {
+    align-self: center
+}
+
+.form input,
+.form select {
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 8px
+}
+
+.form button {
+    grid-column: 1/-1;
+    padding: 10px 12px;
+    background: #1976d2;
+    color: #fff;
+    border: 0;
+    border-radius: 10px;
+    cursor: pointer
+}
+
+.form button.secondary {
+    background: #546e7a
+}
+
+.two-col {
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    gap: 16px;
+    grid-template-areas: "list cal";
+}
+
+.two-col .calendar-wrap {
+    grid-area: cal;
+}
+
+.two-col .list-wrap {
+    grid-area: list;
+}
+
+@media (max-width: 762px) {
+    .two-col {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            "cal"
+            "list";
+    }
+}
+
+#list {
+    list-style: none;
+    padding: 0;
+    margin: 0
+}
+
+#list li {
+    background: #fff;
+    margin-bottom: 8px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px
+}
+
+.item-actions button {
+    margin-left: 6px;
+    border: 0;
+    padding: 6px 8px;
+    border-radius: 8px;
+    cursor: pointer
+}
+
+.item-actions .danger {
+    background: #ffebee
+}
+
+.calendar-wrap {
+    background: #fff;
+    border-radius: 12px;
+    padding: 8px
+}
+
+#calendar {
+    max-width: 900px;
+    height: auto;
+    margin: 8px auto
+}
+
+.rules ul {
+    list-style: none;
+    padding: 0
+}
+
+.rules li {
+    background: #fff;
+    margin-bottom: 6px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center
+}
+
+#summary table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border-radius: 12px;
+    overflow: hidden
+}
+
+#summary th,
+#summary td {
+    padding: 8px;
+    border-bottom: 1px solid #eee;
+    text-align: left
+}
+
+#summary th {
+    background: #fafafa
+}
+
+/* modal */
+.modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
+}
+
+.modal.hidden {
+    display: none !important;
+}
+
+.modal-content {
+    background: #fff;
+    border-radius: 12px;
+    max-width: 640px;
+    width: 92%;
+    padding: 16px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .25)
+}
+
+button.danger {
+    background: #ffebee;
+    border-radius: 8px;
+    border: none;
+    margin-top: 2px;
+    margin-bottom: 2px;
+}
+
+button.danger:hover {
+    background: #fcb1bc;
+    cursor: pointer;
+}
+
+/* FullCalendar 色分け */
+.fc-event.paid {
+    background: #64b5f6 !important;
+    border-color: #64b5f6 !important;
+    color: #0d47a1 !important
+}
+
+.fc-event.overtime {
+    background: #81c784 !important;
+    border-color: #81c784 !important;
+    color: #1b5e20 !important
+}
+
+.fc-event.special {
+    background: #f48fb1 !important;
+    border-color: #f48fb1 !important;
+    color: #880e4f !important
+}
+
+.fc-event.closed {
+    background: #c3b8ff !important;
+    border-color: #c3b8ff !important;
+    color: #333333 !important
+}
+
+
+/* 土日のセル背景（当月のみ・今日以外） */
+.fc .fc-daygrid-day.fc-day-sun:not(.fc-day-other):not(.fc-day-today) .fc-daygrid-day-frame {
+    background: #fff5f5;
+    /* 日曜: 薄い赤 */
+}
+
+.fc .fc-daygrid-day.fc-day-sat:not(.fc-day-other):not(.fc-day-today) .fc-daygrid-day-frame {
+    background: #f5f8ff;
+    /* 土曜: 薄い青 */
+}
+
+.fc-daygrid-day.is-holiday {
+    background: #fff3f3;
+}
+
+.fc-event-title.fc-sticky {
+    font-weight: bold;
+}
+
+/* カレンダー上部の曜日ヘッダーの色も変える場合 */
+.fc .fc-col-header-cell.fc-day-sun {
+    color: #c00;
+    background: #ffecec;
+}
+
+.fc .fc-col-header-cell.fc-day-sat {
+    color: #06c;
+    background: #ecf3ff;
+}
+
+/* 社員リストの表示改善 */
+.emp-line {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.emp-name {
+    font-weight: 600;
+}
+
+.emp-contact {
+    font-size: 12px;
+    color: #555;
+}
+
+.badge-admin {
+    display: inline-block;
+    padding: 2px 6px;
+    font-size: 11px;
+    border-radius: 999px;
+    background: #ffe082;
+    color: #6d4c41;
+    border: 1px solid #ffca28;
+}
+
+/* チェックボックス行 */
+.checkbox-cell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.chk-inline {
+    font-size: 14px;
+}
+
+/* モーダルは既存定義に従う（#emp-modal も同じ見た目） */
