@@ -1,9 +1,12 @@
 // app.js
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, push, onValue, remove, get, set, update, query, orderByChild } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-import { getMessaging, getToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
-import { getAuth, onAuthStateChanged } from "firebase/auth";
-import { getDatabase, ref, set, update } from "firebase/database";
+import { initializeApp } from 'firebase/app';
+import {
+  getDatabase, ref, push, onValue, remove, get, set, update, query, orderByChild
+} from 'firebase/database';
+import {
+  getMessaging, getToken, onMessage, isSupported
+} from 'firebase/messaging';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
 
 
 // ★ あなたのFirebase設定に置き換え
