@@ -1,0 +1,18 @@
+{
+  "name": "a-kintai-1",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "dev": "vite",                    
+    "build:dev": "vite build --mode development", 
+    "build:prod": "vite build --mode production", 
+    "preview": "vite preview"          
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "vite": "^7.1.3"
+  }
+}

@@ -1,5 +1,9 @@
 {
   "projects": {
-    "default": "kintai-app-76bb7"
-  }
+    "default": "dev",
+    "dev": "kintai-app-dev-bf44f",
+    "prod": "kintai-app-prod"
+  },
+  "targets": {},
+  "etags": {}
 }
