@@ -1,10 +1,14 @@
-import { auth } from './firebase';
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+// src/main.js
+import { auth, db, messaging } from './firebase';
+import { onAuthStateChanged } from "firebase/auth";
 
-// UI 切替の基点
+// 認証状態監視
 onAuthStateChanged(auth, (user) => {
-  document.body.classList.toggle('authed', !!user);
-  document.body.classList.toggle('guest', !user);
+  if (user) {
+    console.log("ログイン中:", user.uid);
+  } else {
+    console.log("未ログイン");
+  }
 });
 
 // ログイン例（メール/パスワード）
