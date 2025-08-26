@@ -279,19 +279,19 @@ function renderListPaged(){
 window.goNextPage = function() {
   if (currentPage < totalPages()) {
     currentPage++;
-    console.debug('[pager click] next ->', currentPage);
+    //console.debug('[pager click] next ->', currentPage);
     renderListPaged();
   } else {
-    console.debug('[pager click] next (at last page)', { currentPage, total: totalPages() });
+    //console.debug('[pager click] next (at last page)', { currentPage, total: totalPages() });
   }
 };
 window.goPrevPage = function() {
   if (currentPage > 1) {
     currentPage--;
-    console.debug('[pager click] prev ->', currentPage);
+    //console.debug('[pager click] prev ->', currentPage);
     renderListPaged();
   } else {
-    console.debug('[pager click] prev (at first page)', { currentPage, total: totalPages() });
+    //console.debug('[pager click] prev (at first page)', { currentPage, total: totalPages() });
   }
 };
 
