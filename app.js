@@ -2,6 +2,9 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getDatabase, ref, push, onValue, remove, get, set, update, query, orderByChild } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 import { getMessaging, getToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { getDatabase, ref, set, update } from "firebase/database";
+
 
 // ★ あなたのFirebase設定に置き換え
 const firebaseConfig = {
@@ -16,6 +19,20 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
+const auth = getAuth(app);
+
+
+// 3. 認証状態の監視（最初に置く）
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    console.log('ログイン中:', user.uid, user.email);
+
+    // ここでユーザーと社員データの紐付け処理
+    // 例: usersByUid/{uid} に employeeId を保存するなど
+  } else {
+    console.log('未ログイン');
+  }
+});
 
 // ---- FCM (Web Push) モジュール版 初期化 ----
 let messaging = null;

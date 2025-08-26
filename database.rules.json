@@ -1,9 +1,76 @@
 {
   "rules": {
-    "users": {
+    "admins": {
       "$uid": {
-        ".read": "auth != null && auth.uid === $uid",
+        ".read": false,
         ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+
+    "usersByUid": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",        
+        ".write": "auth != null && auth.uid === $uid"        
+      }
+    },
+
+    "employees": {
+      ".read": "auth != null",
+      "$empId": {
+        ".write": "auth != null && (root.child('admins/' + auth.uid).val() === true)",
+        "uid": { ".validate": "newData.isString()" },
+        "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 50" },
+        "email": { ".validate": "newData.isString()" },
+        "sms": { ".validate": "newData.isString() || !newData.exists()" },
+        "isAdmin": { ".validate": "newData.isBoolean() || !newData.exists()" },
+        "order": { ".validate": "newData.isNumber() || !newData.exists()" },
+        "$other": { ".validate": true }
+      }
+    },
+
+    "kintai": {
+      "$entryId": {
+        ".read": "auth != null && (root.child('admins/' + auth.uid).val() === true || root.child('usersByUid/' + auth.uid + '/employeeId').val() === data.child('employeeId').val())",
+
+        ".write": "auth != null && (root.child('admins/' + auth.uid).val() === true || root.child('usersByUid/' + auth.uid + '/employeeId').val() === newData.child('employeeId').val())",
+
+        ".validate": "
+          newData.hasChildren(['employeeId','date','type']) &&
+          newData.child('employeeId').isString() &&
+          newData.child('date').isString() &&
+          newData.child('date').val().matches(/^\\d{4}-\\d{2}-\\d{2}$/) &&
+          newData.child('type').isString() &&
+          newData.child('type').val() in ['work','off','remote','closed','paid','overtime','special','holiday'] &&
+          (!newData.child('hours').exists() || newData.child('hours').isNumber()) &&
+          (!newData.child('note').exists()  || (newData.child('note').isString() && newData.child('note').val().length <= 200))
+        "
+      }
+    },
+
+    "weeklyRules": {
+      "$ruleId": {
+        ".read": "auth != null && (root.child('admins/' + auth.uid).val() === true || root.child('usersByUid/' + auth.uid + '/employeeId').val() === data.child('employeeId').val())",
+        ".write": "auth != null && (root.child('admins/' + auth.uid).val() === true || root.child('usersByUid/' + auth.uid + '/employeeId').val() === newData.child('employeeId').val())",
+        ".validate": "
+          newData.hasChildren(['employeeId','startDate','endDate','type']) &&
+          newData.child('employeeId').isString() &&
+          newData.child('startDate').isString() &&
+          newData.child('endDate').isString() &&
+          newData.child('type').isString() &&
+          (!newData.child('weekdays').exists() || (newData.child('weekdays').isList() && newData.child('weekdays').val().length > 0))
+        "
+      }
+    },
+
+    "fcmTokens": {
+      "$token": {
+        ".read": false,
+        ".write": "auth != null",  
+        ".validate": "
+          newData.hasChildren(['active','updatedAt']) &&
+          newData.child('active').isBoolean() &&
+          newData.child('updatedAt').isNumber()
+        "
       }
     }
   }
