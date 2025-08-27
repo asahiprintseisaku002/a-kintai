@@ -118,7 +118,7 @@ loginModal.addEventListener('click', (e) => {
 //  ログインUI（任意：ボタンがある場合）
 // ===============================
 window.loginEmail  = async (email, pw) => { await signInWithEmailAndPassword(auth, email, pw); };
-//window.loginGoogle = async () => { await signInWithPopup(auth, new GoogleAuthProvider()); };
+window.loginGoogle = async () => { await signInWithPopup(auth, new GoogleAuthProvider()); };
 window.logout      = async () => { await signOut(auth); };
 
 // ブラウザ再訪でもログイン維持
