@@ -370,27 +370,39 @@ onAuthStateChanged(auth, async (user) => {
 async function requestPermissionAndGetToken() {
   if (!messaging) return null;
 
-  const perm = await Notification.requestPermission();
-  if (perm !== 'granted') return null;
-
-  const reg = await ensureServiceWorker();
-  const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
-  if (!token) return null;
-
-  // ★ ここでガード（未ログイン/未確認なら保存しない）
-  const u = auth.currentUser;
-  if (!u || !u.emailVerified) {
-    console.log('[FCM] skip save: user not verified/logged-in');
-    return token;
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') {
+    console.log('[FCM] 通知が許可されませんでした:', permission);
+    return null;
   }
 
-  await set(ref(db, 'fcmTokens/' + token), {
-    active: true,
-    ua: navigator.userAgent,
-    updatedAt: Date.now()
-  }).catch(e => console.warn('[FCM] failed to save token:', e));
+  const registration = await ensureServiceWorker();
+  const token = await getToken(messaging, {
+    vapidKey: VAPID_KEY,
+    serviceWorkerRegistration: registration
+  });
+  if (!token) return null;
 
-  console.log('FCMトークン:', token);
+  // ★ ここから先は「関数の中」で判定＆早期return
+  const u = auth.currentUser;
+  if (!u || !u.emailVerified) {
+    console.log('[FCM] skip save: user not verified yet');
+    return token; // ← トークンは返すが、保存はしない
+  }
+
+  try {
+    await set(ref(db, 'fcmTokens/' + token), {
+      active: true,
+      uid: u.uid,
+      email: u.email || '',
+      ua: navigator.userAgent,
+      updatedAt: Date.now()
+    });
+    console.log('[FCM] token saved');
+  } catch (e) {
+    console.warn('[FCM] failed to save token:', e);
+  }
+
   return token;
 }
 
