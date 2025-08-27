@@ -314,21 +314,32 @@ function stopDbSubscriptions(){
 // ===============================
 onAuthStateChanged(auth, async (user) => {
   const s = document.getElementById('login-status');
-  if (user) {
-    console.log('ログイン中:', user.uid, user.email);
-    if (s) s.textContent = `ログイン中: ${user.email || user.uid}`;
-    startDbSubscriptions();
 
+  if (user) {
+    s && (s.textContent = `ログイン中: ${user.email || user.uid}`);
+    // 書き込み可UIを有効化
+    setWriteEnabled(true);
+
+    // FCMはログイン後に
     await initMessaging();
     setupOnMessage();
     await requestPermissionAndGetToken();
   } else {
-    console.log('未ログイン');
-    if (s) s.textContent = '未ログイン';
-    stopDbSubscriptions();
-    // 必要なら画面の一覧をクリア
+    s && (s.textContent = '未ログイン');
+    // 書き込みUIを無効化（登録ボタン等をdisabled）
+    setWriteEnabled(false);
   }
+
+  // ← ここを共通で呼ぶ（未ログインでも読む）
+  startDbSubscriptions();
 });
+
+// 例：書き込み系ボタンや入力をまとめて制御
+function setWriteEnabled(enabled){
+  for (const sel of ['#btn-modal-delete','#btn-apply-edit','button.addEmployee','button.addrile','button.addrule','#btn-export-xlsx']) {
+    document.querySelectorAll(sel).forEach(el => el.disabled = !enabled);
+  }
+}
 
 
 // ページロード時に一度トークン取得を試す（任意でボタン連携に）
