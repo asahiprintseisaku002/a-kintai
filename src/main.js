@@ -399,46 +399,6 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-/*
-async function requestPermissionAndGetToken() {
-  if (!messaging) return null;
-
-  const permission = await Notification.requestPermission();
-  if (permission !== 'granted') {
-    console.log('[FCM] 通知が許可されませんでした:', permission);
-    return null;
-  }
-
-  const registration = await ensureServiceWorker();
-  const token = await getToken(messaging, {
-    vapidKey: VAPID_KEY,
-    serviceWorkerRegistration: registration
-  });
-  if (!token) return null;
-
-  // ★ ここから先は「関数の中」で判定＆早期return
-  const u = auth.currentUser;
-  if (!u || !u.emailVerified) {
-    console.log('[FCM] skip save: user not verified yet');
-    return token; // ← トークンは返すが、保存はしない
-  }
-
-  try {
-    await set(ref(db, 'fcmTokens/' + token), {
-      active: true,
-      uid: u.uid,
-      email: u.email || '',
-      ua: navigator.userAgent,
-      updatedAt: Date.now()
-    });
-    console.log('[FCM] token saved');
-  } catch (e) {
-    console.warn('[FCM] failed to save token:', e);
-  }
-
-  return token;
-}
-*/
 
 // 例：書き込み系ボタンや入力をまとめて制御
 function setWriteEnabled(enabled){
@@ -1129,20 +1089,7 @@ let latestMonthData = [];
 let empMap = {};       // { empId: name }
 let empInfoMap = {};   // { empId: { name, email, sms, isAdmin } }
 let employeesLoaded = false;
-/*
-onValue(query(ref(db,'employees'), orderByChild('order')), (snap) => {
-  empMap = {};
-  empInfoMap = {};
-  if (snap.exists()) snap.forEach(c => {
-    const v = c.val() || {};
-    empMap[c.key] = v.name;
-    empInfoMap[c.key] = { name: v.name || '', email: v.email || '', sms: v.sms || '', isAdmin: !!v.isAdmin };
-  });
-  employeesLoaded = true;
-  refreshEmployeesUI(snap);
-  if (lastKintaiSnap) renderFromKintai(lastKintaiSnap);
-});
-*/
+
 onValue(ref(db,'kintai'), (snap) => {
   lastKintaiSnap = snap;
   //if (employeesLoaded) renderFromKintai(snap);
