@@ -20,12 +20,6 @@
 
   <link rel="icon" href="/favicon.png" sizes="any">
 
-  <!--Firebase SDK
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-  -->
-
   <!-- FullCalendar / xlsx -->
   <link href="https://cdn.jsdelivr.net/npm/fullcalendar/main.min.css" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar/index.global.min.js"></script>
@@ -55,23 +49,24 @@
     <!-- ログイン/登録モーダル（簡易） -->
     <div id="login-modal" class="modal hidden">
       <div class="modal-content">
-        <h3>ログイン / 新規登録</h3>
+        <h3 class="login-title">ログイン / 新規登録</h3>
 
         <div class="block">
           <input type="email" id="auth-email" placeholder="メールアドレス" required>
           <input type="password" id="auth-pass" placeholder="パスワード（6文字以上）" required>
-          <div class="row">
-            <button id="btn-login-email"  type="button">メールでログイン</button>
+
+          <div class="block">
             <button id="btn-signup-email" type="button">新規登録</button>
+          </div>
+
+          <div class="login-email-wrap">
+            <button id="btn-login-email"  type="button">メールでログイン</button>
+            <button id="btn-reset" type="button">パスワードをお忘れですか？</button>
           </div>
         </div>
 
         <div class="block">
           <button id="btn-login-google" type="button">Googleでログイン</button>
-        </div>
-
-        <div class="block">
-          <button id="btn-reset" type="button">パスワードをお忘れですか？</button>
         </div>
 
         <button id="btn-close-modal" class="secondary">閉じる</button>

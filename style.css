@@ -26,6 +26,7 @@ h1.logo {
 }
 
 h1.logo span {
+    width: 100%;
     margin-left: 10px;
     font-size: 12px;
     font-weight: 400;
@@ -38,9 +39,14 @@ h1.logo span {
     max-height: 40px;
 }
 
+nav {
+    display: flex;
+    flex-direction: row;
+}
+
 nav button {
     min-width: 60px;
-    width: 200px;
+    width: 180px;
     margin-left: 8px;
     padding: 8px 12px;
     border: 0;
@@ -58,6 +64,37 @@ nav button {
 nav button.active {
     background: #ffd54f;
     color: #333
+}
+
+.login-title {
+    color: #000;
+}
+
+#login-modal {
+    padding: 20px;
+}
+
+#login-status {
+    font-size: 13pt;
+}
+
+input#auth-email,
+input#auth-pass {
+    width: 97%;
+    padding: 10px;
+    margin-bottom: 4px;
+    border-radius: 5px;
+    border: solid 1px #cccccc;
+}
+
+#btn-login-email,
+#btn-signup-email,
+#btn-login-google,
+#btn-reset,
+#btn-close-modal {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 4px;
 }
 
 .toolbar {
@@ -152,6 +189,7 @@ section {
     }
 
     h1.logo {
+        width: 70%;
         display: flex;
         flex-direction: column;
         gap: 2px;
@@ -160,11 +198,22 @@ section {
 
     h1.logo span {
         font-size: 10px;
-        letter-spacing: 2.6px;
+        letter-spacing: 2px;
+    }
+
+    nav {
+        flex-wrap: wrap;
+        gap: 4px;
     }
 
     nav button {
-        width: 80px;
+        width: 73px;
+        padding: 8px;
+    }
+
+    input#auth-email,
+    input#auth-pass {
+        width: 93%;
     }
 
     .form.inline {
