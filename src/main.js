@@ -39,7 +39,7 @@ onAuthStateChanged(auth, (user)=> {
 //  FCM 初期化（未対応環境に配慮）
 // ===============================
 let messaging = null;
-const VAPID_KEY = 'BNNNdazHeKYPoNcSJbZemuxzgdjfHeuJltuu2CATz8gkkLKC-XVsjiT4tDzyHAdOSykCdkV20dKx9A5rbKt5fyw';
+const VAPID_KEY = 'BB-1ckiTojBNB4f5RvrTgUSL75jP3K50GzjU9FdiLmTw7WkskKqhTFxfXCfSB3j2F-q9IKXpX6Ib5YTOGckS7AI';
 
 // サービスワーカー登録（存在しなければ登録）
 async function ensureServiceWorker() {
