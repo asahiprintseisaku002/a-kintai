@@ -286,51 +286,16 @@ async function notifyAdmins(kind, payload) {
 // ===============================
 //  認証状態に応じて DB 購読の開始/停止
 // ===============================
-let unsubEmployees = null;
-let unsubKintai = null;
-
-function startDbSubscriptions(){
-  if (!unsubEmployees) {
-    const q = query(ref(db,'employees'), orderByChild('order'));
-    unsubEmployees = onValue(q, (snap) => {
-      empMap = {};
-      empInfoMap = {};
-      if (snap.exists()) snap.forEach(c => {
-        const v = c.val() || {};
-        empMap[c.key] = v.name;
-        empInfoMap[c.key] = { name: v.name || '', email: v.email || '', sms: v.sms || '', isAdmin: !!v.isAdmin };
-      });
-      employeesLoaded = true;
-      refreshEmployeesUI(snap);
-      if (lastKintaiSnap) renderFromKintai(lastKintaiSnap);
-    });
-  }
-
-  if (!unsubKintai) {
-    unsubKintai = onValue(ref(db,'kintai'), (snap) => {
-      lastKintaiSnap = snap;
-      if (employeesLoaded) renderFromKintai(snap);
-      const v = calendar.view;
-      refreshHolidayEvents(calendar, { start: v.activeStart, end: v.activeEnd });
-    });
-  }
-}
-
-function stopDbSubscriptions(){
-  if (unsubEmployees) { unsubEmployees(); unsubEmployees = null; }
-  if (unsubKintai) { unsubKintai(); unsubKintai = null; }
-}
-
-
 // ---- 購読のハンドル ----
 let stopPublic = null;
 let stopPrivate = null;
 
+// 公開購読（起動時に一度だけ開始）
 function startPublicSubscriptions() {
-  if (stopPublic) return; // 二重防止
+  if (stopPublic) return;
   const unsubs = [];
 
-  // 読み取りOKなパスだけ
+  // 読み取りOKな公開パス
   unsubs.push(onValue(ref(db, 'kintai'), (snap) => {
     lastKintaiSnap = snap;
     if (employeesLoaded) renderFromKintai(snap);
@@ -339,20 +304,22 @@ function startPublicSubscriptions() {
   }));
 
   unsubs.push(onValue(ref(db, 'weeklyRules'), (snap) => {
-    // …既存の weeklyRules の描画処理…
+    // 週ルールの描画があるならここに
+    // ruleList を再描画する既存処理を呼ぶ等
   }));
 
-  // あれば
+  // 公開の社員情報を持つならここで
   // unsubs.push(onValue(ref(db, 'employees_public'), ...));
 
   stopPublic = () => { unsubs.forEach(fn => fn()); stopPublic = null; };
 }
 
+// プライベート購読（ログイン後に開始・ログアウトで停止）
 function startPrivateSubscriptions() {
-  if (stopPrivate) return; // 二重防止
+  if (stopPrivate) return;
   const unsubs = [];
 
-  // 要認証のパス
+  // 要認証のパス（employees）
   const q = query(ref(db, 'employees'), orderByChild('order'));
   unsubs.push(onValue(q, (snap) => {
     empMap = {};
@@ -370,41 +337,35 @@ function startPrivateSubscriptions() {
   stopPrivate = () => { unsubs.forEach(fn => fn()); stopPrivate = null; };
 }
 
-// ===============================
-//  onAuthStateChanged（1つだけ）
-// ===============================
-// アプリ起動時に一度だけ public 購読を開始
+// ===== 起動時に公開購読だけ開始 =====
 startPublicSubscriptions();
 
+// ===== 認証状態 =====
 onAuthStateChanged(auth, async (user) => {
   const s = document.getElementById('login-status');
 
   if (user) {
     const isVerified = !!user.emailVerified;
     s && (s.textContent = `ログイン中: ${user.email || user.uid}${isVerified ? '' : '（メール未確認）'}`);
+    setWriteEnabled(true);
 
-    setWriteEnabled(true);        // 書き込みUIはログインで有効（必要なら verified で条件付け）
+    startPrivateSubscriptions();   // ここで private を開始
 
-    // private 購読（要認証）を開始
-    startPrivateSubscriptions();
-
-    // FCM は“ログイン後”かつ“メール確認済み”で保存する
+    // FCM（必要なら verified で条件付け）
     await initMessaging();
     setupOnMessage();
     if (isVerified) {
-      await requestPermissionAndGetToken(); // ← 中で保存ガードも入れる（次章）
+      await requestPermissionAndGetToken();
     } else {
       console.log('[FCM] skip: email not verified yet');
     }
-
   } else {
     s && (s.textContent = '未ログイン');
     setWriteEnabled(false);
-
-    // private 購読は停止（public は維持）
-    stopPrivate && stopPrivate();
+    stopPrivate && stopPrivate();  // private 停止（public は維持）
   }
 });
+
 
 async function requestPermissionAndGetToken() {
   if (!messaging) return null;
@@ -1139,9 +1100,10 @@ onValue(query(ref(db,'employees'), orderByChild('order')), (snap) => {
 
 onValue(ref(db,'kintai'), (snap) => {
   lastKintaiSnap = snap;
-  if (employeesLoaded) renderFromKintai(snap);
+  //if (employeesLoaded) renderFromKintai(snap);
 
   // ★ 勤怠を描画した「後」に祝日を差し直して順序を確定
+  renderFromKintai(snap);
   const v = calendar.view;
   refreshHolidayEvents(calendar, { start: v.activeStart, end: v.activeEnd });
 });
@@ -1160,7 +1122,7 @@ function renderFromKintai(snap){
   snap.forEach(childSnap => {
     const id = childSnap.key;
     const v  = childSnap.val();
-    const empName = v.employeeName || empMap[v.employeeId] || '社員';
+    const empName = v.employeeName || empMap[v.employeeId] || '(社員)';
 
     const h = parseFloat(v.hours||0) || 0;
     const label = typeLabel(v.type);
