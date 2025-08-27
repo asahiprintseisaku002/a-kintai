@@ -196,7 +196,7 @@ async function requestPermissionAndGetToken() {
   //console.log('FCMトークン:', token);
   return token;
 }
-
+/*
 const requestPermissionAndGetToken = async () => {
   if (!messaging) return null;
 
@@ -234,7 +234,7 @@ const requestPermissionAndGetToken = async () => {
 
   return token;
 };
-
+*/
 
 function setupOnMessage() {
   if (!messaging) return;
