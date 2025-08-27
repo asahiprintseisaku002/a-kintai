@@ -14,8 +14,95 @@ import {
 import {
   getMessaging, getToken, onMessage, isSupported
 } from 'firebase/messaging';
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import { 
+  createUserWithEmailAndPassword, 
+  sendEmailVerification, 
+  sendPasswordResetEmail 
+} from "firebase/auth";
 
+// --- 新規登録（サインアップ） ---
+async function signupEmail(email, pw) {
+  const cred = await createUserWithEmailAndPassword(auth, email, pw);
+
+  // 初回プロフィールの雛形を自分の領域に保存（任意）
+  await set(ref(db, `usersByUid/${cred.user.uid}`), {
+    email: cred.user.email || '',
+    createdAt: Date.now()
+  });
+
+  // メール確認を送る（推奨）
+  try {
+    await sendEmailVerification(cred.user);
+    alert('確認メールを送信しました。受信ボックスをご確認ください。');
+  } catch (e) {
+    console.warn('メール確認送信失敗:', e);
+  }
+  return cred.user;
+}
+
+// --- パスワード再設定 ---
+async function resetPassword(email) {
+  await sendPasswordResetEmail(auth, email);
+  alert('パスワード再設定メールを送信しました');
+}
+
+// --- モーダルとボタン連携 ---
+const loginModal   = document.getElementById('login-modal');
+const btnOpen = document.getElementById('btn-login');
+const btnClose= document.getElementById('btn-close-modal');
+const btnLE   = document.getElementById('btn-login-email');
+const btnSE   = document.getElementById('btn-signup-email');
+const btnLG   = document.getElementById('btn-login-google');
+const btnReset= document.getElementById('btn-reset');
+const btnOut  = document.getElementById('btn-logout');
+
+btnOpen?.addEventListener('click', () => loginModal.classList.remove('hidden'));
+btnClose?.addEventListener('click', () => loginModal.classList.add('hidden'));
+
+btnLE?.addEventListener('click', async () => {
+  const email = document.getElementById('auth-email').value.trim();
+  const pass  = document.getElementById('auth-pass').value;
+  try {
+    await window.loginEmail(email, pass);
+    loginModal.classList.add('hidden');
+  } catch (e) {
+    alert('ログイン失敗: ' + e.message);
+  }
+});
+
+btnSE?.addEventListener('click', async () => {
+  const email = document.getElementById('auth-email').value.trim();
+  const pass  = document.getElementById('auth-pass').value;
+  try {
+    await signupEmail(email, pass);
+    loginModal.classList.add('hidden');
+  } catch (e) {
+    alert('登録失敗: ' + e.message);
+  }
+});
+
+btnLG?.addEventListener('click', async () => {
+  try {
+    await window.loginGoogle();
+    loginModal.classList.add('hidden');
+  } catch (e) {
+    alert('Googleログイン失敗: ' + e.message);
+  }
+});
+
+btnReset?.addEventListener('click', async () => {
+  const email = document.getElementById('auth-email').value.trim();
+  if (!email) return alert('先にメールアドレスを入力してください');
+  try {
+    await resetPassword(email);
+  } catch (e) {
+    alert('送信失敗: ' + e.message);
+  }
+});
+
+btnOut?.addEventListener('click', async () => {
+  try { await window.logout(); } catch {}
+});
 // ===============================
 //  ログインUI（任意：ボタンがある場合）
 // ===============================
@@ -126,15 +213,6 @@ await loadWebhookConfig();
 // ===============================
 //  ユーティリティなど（既存）
 // ===============================
-
-async function registerEmail(email, pw) {
-  try {
-    const user = await createUserWithEmailAndPassword(auth, email, pw);
-    console.log("ユーザー登録成功:", user.user.uid);
-  } catch (e) {
-    alert("登録失敗: " + e.message);
-  }
-}
 
 const GMAIL_ONLY = false;
 const isGmail = (email) => /@gmail\.com$|@googlemail\.com$/i.test(String(email||'').trim());

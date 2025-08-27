@@ -52,15 +52,30 @@
       <button id="btn-logout" class="hidden">ログアウト</button>
     </nav>
 
-    <!-- ログインモーダル -->
-    <div id="login-modal" class="hidden">
-      <form onsubmit="return false;">
-        <input type="email" id="login-email" placeholder="メールアドレス" required>
-        <input type="password" id="login-pass" placeholder="パスワード" required>
-        <button type="button" onclick="loginEmailFromForm()">メールでログイン</button>
-      </form>
-      <button type="button" onclick="window.loginGoogle()">Googleでログイン</button>
-      <p><a href="#" onclick="showRegister()">新規登録はこちら</a></p>
+    <!-- ログイン/登録モーダル（簡易） -->
+    <div id="login-modal" class="modal hidden">
+      <div class="modal-content">
+        <h3>ログイン / 新規登録</h3>
+
+        <div class="block">
+          <input type="email" id="auth-email" placeholder="メールアドレス" required>
+          <input type="password" id="auth-pass" placeholder="パスワード（6文字以上）" required>
+          <div class="row">
+            <button id="btn-login-email"  type="button">メールでログイン</button>
+            <button id="btn-signup-email" type="button">新規登録</button>
+          </div>
+        </div>
+
+        <div class="block">
+          <button id="btn-login-google" type="button">Googleでログイン</button>
+        </div>
+
+        <div class="block">
+          <button id="btn-reset" type="button">パスワードをお忘れですか？</button>
+        </div>
+
+        <button id="btn-close-modal" class="secondary">閉じる</button>
+      </div>
     </div>
 
   </header>
