@@ -47,10 +47,22 @@
     <nav>
       <button id="tab-main" class="active">メイン</button>
       <button id="tab-settings">設定</button>
+      <button id="btn-login">ログイン</button>
+      <span id="login-status"></span>
+      <button id="btn-logout" class="hidden">ログアウト</button>
     </nav>
-    <button id="btn-login">Googleでログイン</button>
-    <button id="btn-logout" style="display:none;">ログアウト</button>
-    <span id="login-status"></span>
+
+    <!-- ログインモーダル -->
+    <div id="login-modal" class="hidden">
+      <form onsubmit="return false;">
+        <input type="email" id="login-email" placeholder="メールアドレス" required>
+        <input type="password" id="login-pass" placeholder="パスワード" required>
+        <button type="button" onclick="loginEmailFromForm()">メールでログイン</button>
+      </form>
+      <button type="button" onclick="window.loginGoogle()">Googleでログイン</button>
+      <p><a href="#" onclick="showRegister()">新規登録はこちら</a></p>
+    </div>
+
   </header>
 
   <section id="main">

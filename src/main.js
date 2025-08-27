@@ -14,6 +14,7 @@ import {
 import {
   getMessaging, getToken, onMessage, isSupported
 } from 'firebase/messaging';
+import { createUserWithEmailAndPassword } from "firebase/auth";
 
 // ===============================
 //  ログインUI（任意：ボタンがある場合）
@@ -125,6 +126,16 @@ await loadWebhookConfig();
 // ===============================
 //  ユーティリティなど（既存）
 // ===============================
+
+async function registerEmail(email, pw) {
+  try {
+    const user = await createUserWithEmailAndPassword(auth, email, pw);
+    console.log("ユーザー登録成功:", user.user.uid);
+  } catch (e) {
+    alert("登録失敗: " + e.message);
+  }
+}
+
 const GMAIL_ONLY = false;
 const isGmail = (email) => /@gmail\.com$|@googlemail\.com$/i.test(String(email||'').trim());
 
