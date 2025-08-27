@@ -124,9 +124,9 @@ window.logout      = async () => { await signOut(auth); };
 // ブラウザ再訪でもログイン維持
 await setPersistence(auth, browserLocalPersistence);
 
-document.getElementById('btn-login')?.addEventListener('click', async () => {
-  await signInWithPopup(auth, new GoogleAuthProvider());
-});
+//document.getElementById('btn-login')?.addEventListener('click', async () => {
+//  await signInWithPopup(auth, new GoogleAuthProvider());
+//});
 document.getElementById('btn-logout')?.addEventListener('click', () => signOut(auth));
 
 onAuthStateChanged(auth, (user)=> {
