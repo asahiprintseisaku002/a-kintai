@@ -170,7 +170,7 @@ await set(ref(db, 'fcmTokens/' + token), {
   ua: navigator.userAgent,
   updatedAt: Date.now()
 });
-
+/*
 async function requestPermissionAndGetToken() {
   if (!messaging) return null;
 
@@ -196,6 +196,45 @@ async function requestPermissionAndGetToken() {
   console.log('FCMトークン:', token);
   return token;
 }
+*/
+const requestPermissionAndGetToken = async () => {
+  if (!messaging) return null;
+
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') {
+    console.log('[FCM] 通知が許可されませんでした:', permission);
+    return null;
+  }
+
+  const registration = await ensureServiceWorker();
+  const token = await getToken(messaging, {
+    vapidKey: VAPID_KEY,
+    serviceWorkerRegistration: registration
+  });
+  if (!token) return null;
+
+  const u = auth.currentUser;
+  if (!u || !u.emailVerified) {
+    console.log('[FCM] skip save: user not verified yet');
+    return token; // トークンは返すが保存はしない
+  }
+
+  try {
+    await set(ref(db, 'fcmTokens/' + token), {
+      active: true,
+      uid: u.uid,
+      email: u.email || '',
+      ua: navigator.userAgent,
+      updatedAt: Date.now()
+    });
+    console.log('[FCM] token saved');
+  } catch (e) {
+    console.warn('[FCM] failed to save token:', e);
+  }
+
+  return token;
+};
+
 
 function setupOnMessage() {
   if (!messaging) return;
