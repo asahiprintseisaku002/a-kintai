@@ -7,7 +7,7 @@ firebase.initializeApp({
   apiKey: "AIzaSyDeZBhMuZQGTFdl-BGNQuQpABj7-kuC794",
   authDomain: "kintai-app-76bb7.firebaseapp.com",
   projectId: "kintai-app-76bb7",
-  messagingSenderId: "805510662959",
+  messagingSenderId: "1050791558955",
   appId: "1:805510662959:web:5ce04c4b49e0ec9759efda",
 });
 
