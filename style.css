@@ -215,6 +215,10 @@ section {
         padding: 8px;
     }
 
+    button#btn-logout {
+        width: 100px;
+    }
+
     input#auth-email,
     input#auth-pass {
         width: 93%;
