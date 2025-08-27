@@ -165,6 +165,18 @@ async function initMessaging() {
   }
 }
 
+const u = auth.currentUser;
+if (!u || !u.emailVerified) {
+  console.log('[FCM] skip save: user not verified yet');
+  return token; // ← トークン取得まではOK、保存は後回し
+}
+
+await set(ref(db, 'fcmTokens/' + token), {
+  active: true,
+  ua: navigator.userAgent,
+  updatedAt: Date.now()
+});
+
 async function requestPermissionAndGetToken() {
   if (!messaging) return null;
 
@@ -309,30 +321,118 @@ function stopDbSubscriptions(){
   if (unsubKintai) { unsubKintai(); unsubKintai = null; }
 }
 
+
+// ---- 購読のハンドル ----
+let stopPublic = null;
+let stopPrivate = null;
+
+function startPublicSubscriptions() {
+  if (stopPublic) return; // 二重防止
+  const unsubs = [];
+
+  // 読み取りOKなパスだけ
+  unsubs.push(onValue(ref(db, 'kintai'), (snap) => {
+    lastKintaiSnap = snap;
+    if (employeesLoaded) renderFromKintai(snap);
+    const v = calendar.view;
+    refreshHolidayEvents(calendar, { start: v.activeStart, end: v.activeEnd });
+  }));
+
+  unsubs.push(onValue(ref(db, 'weeklyRules'), (snap) => {
+    // …既存の weeklyRules の描画処理…
+  }));
+
+  // あれば
+  // unsubs.push(onValue(ref(db, 'employees_public'), ...));
+
+  stopPublic = () => { unsubs.forEach(fn => fn()); stopPublic = null; };
+}
+
+function startPrivateSubscriptions() {
+  if (stopPrivate) return; // 二重防止
+  const unsubs = [];
+
+  // 要認証のパス
+  const q = query(ref(db, 'employees'), orderByChild('order'));
+  unsubs.push(onValue(q, (snap) => {
+    empMap = {};
+    empInfoMap = {};
+    if (snap.exists()) snap.forEach(c => {
+      const v = c.val() || {};
+      empMap[c.key] = v.name;
+      empInfoMap[c.key] = { name: v.name || '', email: v.email || '', sms: v.sms || '', isAdmin: !!v.isAdmin };
+    });
+    employeesLoaded = true;
+    refreshEmployeesUI(snap);
+    if (lastKintaiSnap) renderFromKintai(lastKintaiSnap);
+  }));
+
+  stopPrivate = () => { unsubs.forEach(fn => fn()); stopPrivate = null; };
+}
+
 // ===============================
 //  onAuthStateChanged（1つだけ）
 // ===============================
+// アプリ起動時に一度だけ public 購読を開始
+startPublicSubscriptions();
+
 onAuthStateChanged(auth, async (user) => {
   const s = document.getElementById('login-status');
 
   if (user) {
-    s && (s.textContent = `ログイン中: ${user.email || user.uid}`);
-    // 書き込み可UIを有効化
-    setWriteEnabled(true);
+    const isVerified = !!user.emailVerified;
+    s && (s.textContent = `ログイン中: ${user.email || user.uid}${isVerified ? '' : '（メール未確認）'}`);
 
-    // FCMはログイン後に
+    setWriteEnabled(true);        // 書き込みUIはログインで有効（必要なら verified で条件付け）
+
+    // private 購読（要認証）を開始
+    startPrivateSubscriptions();
+
+    // FCM は“ログイン後”かつ“メール確認済み”で保存する
     await initMessaging();
     setupOnMessage();
-    await requestPermissionAndGetToken();
+    if (isVerified) {
+      await requestPermissionAndGetToken(); // ← 中で保存ガードも入れる（次章）
+    } else {
+      console.log('[FCM] skip: email not verified yet');
+    }
+
   } else {
     s && (s.textContent = '未ログイン');
-    // 書き込みUIを無効化（登録ボタン等をdisabled）
     setWriteEnabled(false);
+
+    // private 購読は停止（public は維持）
+    stopPrivate && stopPrivate();
+  }
+});
+
+async function requestPermissionAndGetToken() {
+  if (!messaging) return null;
+
+  const perm = await Notification.requestPermission();
+  if (perm !== 'granted') return null;
+
+  const reg = await ensureServiceWorker();
+  const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
+  if (!token) return null;
+
+  // ★ ここでガード（未ログイン/未確認なら保存しない）
+  const u = auth.currentUser;
+  if (!u || !u.emailVerified) {
+    console.log('[FCM] skip save: user not verified/logged-in');
+    return token;
   }
 
-  // ← ここを共通で呼ぶ（未ログインでも読む）
-  startDbSubscriptions();
-});
+  await set(ref(db, 'fcmTokens/' + token), {
+    active: true,
+    ua: navigator.userAgent,
+    updatedAt: Date.now()
+  }).catch(e => console.warn('[FCM] failed to save token:', e));
+
+  console.log('FCMトークン:', token);
+  return token;
+}
+
 
 // 例：書き込み系ボタンや入力をまとめて制御
 function setWriteEnabled(enabled){
