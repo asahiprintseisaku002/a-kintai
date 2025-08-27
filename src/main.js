@@ -103,6 +103,17 @@ btnReset?.addEventListener('click', async () => {
 btnOut?.addEventListener('click', async () => {
   try { await window.logout(); } catch {}
 });
+
+function closeLoginModal(){ loginModal.classList.add('hidden'); }
+window.closeLoginModal = closeLoginModal;
+
+// モーダル外をクリック/タップしたら閉じる
+loginModal.addEventListener('click', (e) => {
+  // クリック／タップした対象が「背景部分（＝modal自身）」なら閉じる
+  if (e.target === loginModal) {
+    closeLoginModal();
+  }
+});
 // ===============================
 //  ログインUI（任意：ボタンがある場合）
 // ===============================
