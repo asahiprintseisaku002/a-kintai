@@ -164,13 +164,13 @@ async function initMessaging() {
     console.log('[FCM] この環境ではWeb Push非対応');
   }
 }
-
+/*
 await set(ref(db, 'fcmTokens/' + token), {
   active: true,
   ua: navigator.userAgent,
   updatedAt: Date.now()
 });
-/*
+*/
 async function requestPermissionAndGetToken() {
   if (!messaging) return null;
 
@@ -196,7 +196,7 @@ async function requestPermissionAndGetToken() {
   console.log('FCMトークン:', token);
   return token;
 }
-*/
+
 const requestPermissionAndGetToken = async () => {
   if (!messaging) return null;
 
@@ -399,7 +399,7 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-
+/*
 async function requestPermissionAndGetToken() {
   if (!messaging) return null;
 
@@ -438,11 +438,11 @@ async function requestPermissionAndGetToken() {
 
   return token;
 }
-
+*/
 
 // 例：書き込み系ボタンや入力をまとめて制御
 function setWriteEnabled(enabled){
-  for (const sel of ['#btn-modal-delete','#btn-apply-edit','button.addEmployee','button.addrile','button.addrule','#btn-export-xlsx']) {
+  for (const sel of ['#btn-modal-delete','#btn-apply-edit','button.addEmployee','button.addrule','#btn-export-xlsx']) {
     document.querySelectorAll(sel).forEach(el => el.disabled = !enabled);
   }
 }
@@ -1129,7 +1129,7 @@ let latestMonthData = [];
 let empMap = {};       // { empId: name }
 let empInfoMap = {};   // { empId: { name, email, sms, isAdmin } }
 let employeesLoaded = false;
-
+/*
 onValue(query(ref(db,'employees'), orderByChild('order')), (snap) => {
   empMap = {};
   empInfoMap = {};
@@ -1142,7 +1142,7 @@ onValue(query(ref(db,'employees'), orderByChild('order')), (snap) => {
   refreshEmployeesUI(snap);
   if (lastKintaiSnap) renderFromKintai(lastKintaiSnap);
 });
-
+*/
 onValue(ref(db,'kintai'), (snap) => {
   lastKintaiSnap = snap;
   //if (employeesLoaded) renderFromKintai(snap);
