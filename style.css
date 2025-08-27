@@ -213,7 +213,7 @@ section {
     }
 
     #login-status {
-        font-size: 1em;
+        font-size: 12px;
     }
 
     input#auth-email,
