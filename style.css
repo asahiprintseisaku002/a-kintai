@@ -76,7 +76,10 @@ nav button.active {
 }
 
 #login-status {
-    font-size: 13pt;
+    font-size: 10pt;
+    margin-left: 10px;
+    align-self: center;
+
 }
 
 input#auth-email,
@@ -210,10 +213,6 @@ section {
     nav button {
         width: 73px;
         padding: 8px;
-    }
-
-    #login-status {
-        font-size: 12px;
     }
 
     input#auth-email,
