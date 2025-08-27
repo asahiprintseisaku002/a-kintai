@@ -193,7 +193,7 @@ async function requestPermissionAndGetToken() {
   } catch (e) {
     console.warn('[FCM] failed to save token:', e);
   }
-  console.log('FCMトークン:', token);
+  //console.log('FCMトークン:', token);
   return token;
 }
 
