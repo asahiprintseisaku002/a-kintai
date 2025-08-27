@@ -165,12 +165,6 @@ async function initMessaging() {
   }
 }
 
-const u = auth.currentUser;
-if (!u || !u.emailVerified) {
-  console.log('[FCM] skip save: user not verified yet');
-  return token; // ← トークン取得まではOK、保存は後回し
-}
-
 await set(ref(db, 'fcmTokens/' + token), {
   active: true,
   ua: navigator.userAgent,
