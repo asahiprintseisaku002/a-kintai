@@ -40,7 +40,7 @@
     </h1>
     <nav>
       <button id="tab-main" class="active">メイン</button>
-      <button id="tab-settings">設定</button>
+      <button id="tab-settings" class="private-only hidden">設定</button>
       <button id="btn-login">ログイン</button>
       <span id="login-status"></span>
       <button id="btn-logout" class="hidden">ログアウト</button>
@@ -76,37 +76,39 @@
   </header>
 
   <section id="main">
-    <div class="toolbar">
+    <div class="toolbar private-only hidden">
       <button id="btn-export-xlsx">Excelエクスポート（今月・社員別シート）</button>
     </div>
 
-    <h2>予定の登録</h2>
-    <div class="form">
-      <label>社員</label>
-      <select id="employee"></select>
+    <div class="private-only hidden">
+      <h2>予定の登録</h2>
+      <div class="form">
+        <label>社員</label>
+        <select id="employee"></select>
 
-      <label>日付</label>
-      <input type="date" id="date">
+        <label>日付</label>
+        <input type="date" id="date">
 
-      <label>開始時刻</label>
-      <input type="time" id="start" value="09:00">
+        <label>開始時刻</label>
+        <input type="time" id="start" value="09:00">
 
-      <label>時間(0.5刻み)</label>
-      <input type="number" id="hours" step="0.5" min="0" value="8">
+        <label>時間(0.5刻み)</label>
+        <input type="number" id="hours" step="0.5" min="0" value="8">
 
-      <label>種別</label>
-      <select id="type">
-        <option value="paid">有給</option>
-        <option value="overtime">残業</option>
-        <option value="special">特別休暇</option>
-        <option value="holiday">休日出勤</option>
-        <option value="closed">休業</option>
-      </select>
+        <label>種別</label>
+        <select id="type">
+          <option value="paid">有給</option>
+          <option value="overtime">残業</option>
+          <option value="special">特別休暇</option>
+          <option value="holiday">休日出勤</option>
+          <option value="closed">休業</option>
+        </select>
 
-      <label>備考</label>
-      <input type="text" id="note" placeholder="任意（例：午前用事）">
+        <label>備考</label>
+        <input type="text" id="note" placeholder="任意（例：午前用事）">
 
-      <button onclick="submitKintai()">登録</button>
+        <button onclick="submitKintai()">登録</button>
+      </div>
     </div>
 
     <div class="two-col">
@@ -126,7 +128,7 @@
       </div>
     </div>
 
-    <div class="rules">
+    <div class="rules private-only hidden">
       <h2>毎週スケジュールの登録</h2>
       <div class="form inline">
         <label>社員</label>

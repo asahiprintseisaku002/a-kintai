@@ -351,13 +351,33 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-
 // 例：書き込み系ボタンや入力をまとめて制御
 function setWriteEnabled(enabled){
   for (const sel of ['#btn-modal-delete','#btn-apply-edit','button.addEmployee','button.addrule','#btn-export-xlsx']) {
     document.querySelectorAll(sel).forEach(el => el.disabled = !enabled);
   }
 }
+
+// ログイン/未ログインに応じて切り替え
+function togglePrivateUI(isLoggedIn) {
+  document.querySelectorAll('.private-only').forEach(el => {
+    el.classList.toggle('hidden', !isLoggedIn);
+  });
+}
+
+onAuthStateChanged(auth, async (user) => {
+  togglePrivateUI(!!user);
+
+  if (user) {
+    // 書き込み許可
+    setWriteEnabled(true);
+    startPrivateSubscriptions();
+  } else {
+    // 書き込み不可
+    setWriteEnabled(false);
+    stopPrivate && stopPrivate();
+  }
+});
 
 
 // ページロード時に一度トークン取得を試す（任意でボタン連携に）
