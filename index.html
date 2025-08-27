@@ -20,11 +20,11 @@
 
   <link rel="icon" href="/favicon.png" sizes="any">
 
-  <!--Firebase SDK-->
+  <!--Firebase SDK
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-
+  -->
 
   <!-- FullCalendar / xlsx -->
   <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet" />
@@ -34,9 +34,9 @@
   <!-- App styles -->
   <link rel="stylesheet" href="style.css" />
 
-  <!-- App script (ESM) -->
-
+  <!-- App script (ESM) 
   <script type="module" src="app.js"></script>
+  -->
 </head>
 <body>
   <header>
@@ -48,6 +48,9 @@
       <button id="tab-main" class="active">メイン</button>
       <button id="tab-settings">設定</button>
     </nav>
+    <button id="btn-login">Googleでログイン</button>
+    <button id="btn-logout" style="display:none;">ログアウト</button>
+    <span id="login-status"></span>
   </header>
 
   <section id="main">
