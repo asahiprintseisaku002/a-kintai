@@ -216,7 +216,15 @@ async function loadWebhookConfig(){
   window.NOTIFY_WEBHOOK_URL   = cfg.webhookUrl;
   window.NOTIFY_WEBHOOK_TOKEN = cfg.webhookToken;
 }
-await loadWebhookConfig();
+
+try {
+  await loadWebhookConfig();
+} catch (error) {
+  console.warn(
+    '[通知設定] config.phpを取得できなかったため、通知なしで続行します。',
+    error
+  );
+}
 
 // ===============================
 //  ユーティリティなど（既存）
@@ -280,14 +288,6 @@ function startPublicSubscriptions() {
   if (stopPublic) return;
   const unsubs = [];
 
-  // 読み取りOKな公開パス
-  unsubs.push(onValue(ref(db, 'kintai'), (snap) => {
-    lastKintaiSnap = snap;
-    if (employeesLoaded) renderFromKintai(snap);
-    const v = calendar.view;
-    refreshHolidayEvents(calendar, { start: v.activeStart, end: v.activeEnd });
-  }));
-
   unsubs.push(onValue(ref(db, 'weeklyRules'), (snap) => {
     // 週ルールの描画があるならここに
     // ruleList を再描画する既存処理を呼ぶ等
@@ -296,7 +296,9 @@ function startPublicSubscriptions() {
   // 公開の社員情報を持つならここで
   // unsubs.push(onValue(ref(db, 'employees_public'), ...));
 
-  stopPublic = () => { unsubs.forEach(fn => fn()); stopPublic = null; };
+  stopPublic = () => { 
+    unsubs.forEach(fn => fn()); 
+    stopPublic = null; };
 }
 
 // プライベート購読（ログイン後に開始・ログアウトで停止）
@@ -318,6 +320,21 @@ function startPrivateSubscriptions() {
     refreshEmployeesUI(snap);
     if (lastKintaiSnap) renderFromKintai(lastKintaiSnap);
   }));
+
+    // 勤怠情報の監視
+  unsubs.push(onValue(
+    ref(db, 'kintai'),
+    (snap) => {
+      lastKintaiSnap = snap;
+
+      if (employeesLoaded) {
+        renderFromKintai(snap);
+      }
+    },
+    (error) => {
+      console.error('[kintai] データの取得に失敗しました:', error);
+    }
+  ));
 
   stopPrivate = () => { unsubs.forEach(fn => fn()); stopPrivate = null; };
 }
@@ -1061,16 +1078,6 @@ let latestMonthData = [];
 let empMap = {};       // { empId: name }
 let empInfoMap = {};   // { empId: { name, email, sms, isAdmin } }
 let employeesLoaded = false;
-
-onValue(ref(db,'kintai'), (snap) => {
-  lastKintaiSnap = snap;
-  //if (employeesLoaded) renderFromKintai(snap);
-
-  // ★ 勤怠を描画した「後」に祝日を差し直して順序を確定
-  renderFromKintai(snap);
-  const v = calendar.view;
-  refreshHolidayEvents(calendar, { start: v.activeStart, end: v.activeEnd });
-});
 
 function renderFromKintai(snap){
   const events = [];
