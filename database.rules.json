@@ -11,8 +11,37 @@
 
     "usersByUid": {
       "$uid": {
-        ".read": "auth != null && auth.uid === $uid",        
-        ".write": "auth != null && auth.uid === $uid"        
+        ".read": "auth != null && (
+          auth.uid === $uid ||
+          root.child('admins/' + auth.uid).val() === true
+        )",
+
+        ".write": "auth != null && (
+          root.child('admins/' + auth.uid).val() === true ||
+          (
+            auth.uid === $uid &&
+            newData.child('employeeId').val() === data.child('employeeId').val()
+          )
+        )",
+
+        "email": {
+          ".validate": "newData.isString()"
+        },
+
+        "createdAt": {
+          ".validate": "newData.isNumber() && (
+            !data.exists() ||
+            newData.val() === data.val()
+          )"
+        },
+
+        "employeeId": {
+          ".validate": "!newData.exists() || newData.isString()"
+        },
+
+        "$other": {
+          ".validate": false
+        }
       }
     },
 
@@ -31,12 +60,48 @@
     },
 
     "kintai": {
-      ".read": "auth != null && root.child('admins/' + auth.uid).val() === true",
-      ".indexOn": ["date"],
+      ".read": "auth != null",
+      
+      ".indexOn": [
+        "date",
+        "employeeId",
+        "sourceRuleId"
+      ],
       "$entryId": {
         ".read": "auth != null && (root.child('admins/' + auth.uid).val() === true || root.child('usersByUid/' + auth.uid + '/employeeId').val() === data.child('employeeId').val())",
 
-        ".write": "auth != null && (root.child('admins/' + auth.uid).val() === true || root.child('usersByUid/' + auth.uid + '/employeeId').val() === newData.child('employeeId').val())",
+        ".write": "
+          auth != null &&
+          (
+            root.child('admins/' + auth.uid).val() === true ||
+
+            (
+              !data.exists() &&
+              newData.exists() &&
+              newData.child('createdByUid').val() === auth.uid &&
+              root.child('usersByUid/' + auth.uid + '/employeeId').val() === newData.child('employeeId').val()
+            ) ||
+
+            (
+              data.exists() &&
+              newData.exists() &&
+              root.child('usersByUid/' + auth.uid + '/employeeId').val() === newData.child('employeeId').val() &&
+              (
+                (
+                  !data.child('createdByUid').exists() &&
+                  !newData.child('createdByUid').exists()
+                ) ||
+                data.child('createdByUid').val() === newData.child('createdByUid').val()
+              )
+            ) ||
+
+            (
+              data.exists() &&
+              !newData.exists() &&
+              data.child('createdByUid').val() === auth.uid
+            )
+          )
+        ",
 
         ".validate": "
           newData.hasChildren(['employeeId','date','type']) &&
@@ -56,11 +121,30 @@
             ) &&
           (!newData.child('hours').exists() || newData.child('hours').isNumber()) &&
           (!newData.child('note').exists()  || (newData.child('note').isString() && newData.child('note').val().length <= 200))
+          &&
+          (
+            (
+              !data.exists() &&
+              newData.child('createdByUid').isString()
+            ) ||
+            (
+              data.exists() &&
+              !data.child('createdByUid').exists() &&
+              !newData.child('createdByUid').exists()
+            ) ||
+            (
+              data.exists() &&
+              data.child('createdByUid').exists() &&
+              newData.child('createdByUid').isString()
+            )
+          )
         "
       }
     },
 
     "weeklyRules": {
+      ".read": "auth != null && root.child('admins/' + auth.uid).val() === true",
+
       "$ruleId": {
         ".read": "auth != null && (root.child('admins/' + auth.uid).val() === true || root.child('usersByUid/' + auth.uid + '/employeeId').val() === data.child('employeeId').val())",
         ".write": "auth != null && (root.child('admins/' + auth.uid).val() === true || root.child('usersByUid/' + auth.uid + '/employeeId').val() === newData.child('employeeId').val())",

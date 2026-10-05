@@ -10,7 +10,9 @@ import {
   query,
   orderByChild,
   startAt,
-  endAt
+  endAt,
+  equalTo,
+  limitToFirst
 } from 'firebase/database';
 import {
   onAuthStateChanged,
@@ -45,7 +47,20 @@ async function signupEmail(email, pw) {
     await sendEmailVerification(cred.user);
     alert('確認メールを送信しました。受信ボックスをご確認ください。');
   } catch (e) {
-    console.warn('メール確認送信失敗:', e);
+    console.error('[signupEmail]', e);
+
+    const messages = {
+      'auth/operation-not-allowed':
+        'Firebaseでメール/パスワード認証が有効になっていません。',
+      'auth/email-already-in-use':
+        'このメールアドレスはすでに登録されています。',
+      'auth/invalid-email':
+        'メールアドレスの形式が正しくありません。',
+      'auth/weak-password':
+        'パスワードが短すぎます。6文字以上で入力してください。'
+    };
+
+    alert(messages[e.code] || `登録に失敗しました: ${e.message}`);
   }
   return cred.user;
 }
@@ -76,7 +91,22 @@ btnLE?.addEventListener('click', async () => {
     await window.loginEmail(email, pass);
     loginModal.classList.add('hidden');
   } catch (e) {
-    alert('ログイン失敗: ' + e.message);
+    console.error('[loginEmail]', e);
+
+    const messages = {
+      'auth/operation-not-allowed':
+        'Firebaseでメール/パスワード認証が有効になっていません。',
+      'auth/invalid-email':
+        'メールアドレスの形式が正しくありません。',
+      'auth/invalid-credential':
+        'メールアドレスまたはパスワードが正しくありません。',
+      'auth/user-disabled':
+        'このアカウントは無効になっています。',
+      'auth/too-many-requests':
+        'ログイン試行が多すぎます。しばらく待ってから再試行してください。'
+    };
+
+    alert(messages[e.code] || `ログインに失敗しました: ${e.message}`);
   }
 });
 
@@ -707,11 +737,16 @@ window.applyEmpEdit = applyEmpEdit;
 
 /** 社員削除（紐付く予定があれば不可） */
 async function deleteEmployee(empId){
-  const kSnap = await get(ref(db,'kintai'));
-  let used = false;
-  if(kSnap.exists()){
-    kSnap.forEach(c=>{ if(c.val().employeeId===empId) used = true; });
-  }
+  const employeeKintaiQuery = query(
+    ref(db, 'kintai'),
+    orderByChild('employeeId'),
+    equalTo(empId),
+    limitToFirst(1)
+  );
+
+  const kSnap = await get(employeeKintaiQuery);
+  const used = kSnap.exists();
+
   if(used){
     alert('この社員に紐づく予定が存在するため削除できません。先に予定を削除してください。');
     return;
@@ -860,13 +895,19 @@ async function backfillEmployeeOrder(){
 document.addEventListener('DOMContentLoaded', backfillEmployeeOrder);
 
 
-function submitKintai(){
+async function submitKintai(){
+  const user = auth.currentUser;
   const employeeId = document.getElementById('employee').value;
   const date  = document.getElementById('date').value;
   const start = document.getElementById('start').value;
   const hours = parseFloat(document.getElementById('hours').value || '0');
   const type  = document.getElementById('type').value;
   const note  = (document.getElementById('note').value || '').trim();
+
+  if (!user) {
+    alert('予定を登録するにはログインが必要です');
+    return;
+  }
 
   if (!employeeId || !date || !type) return alert('項目を入力してください');
 
@@ -876,15 +917,41 @@ function submitKintai(){
     '';
 
   const payload = {
-    employeeId, employeeName,
-    date, start, hours, type, note,
+    employeeId,
+    employeeName,
+    date,
+    start,
+    hours,
+    type,
+    note,
+    createdByUid: user.uid,
     createdAt: Date.now()
   };
 
-  push(ref(db,'kintai'), payload).then(()=>{
+  try {
+    console.log('[submitKintai]', {
+      uid: user.uid,
+      employeeId,
+      createdByUid: payload.createdByUid
+    });
+
+    await push(ref(db, 'kintai'), payload);
+
     alert('登録しました');
-    notifyAdmins('created', payload);
-  });
+    await notifyAdmins('created', payload);
+  } catch (error) {
+    console.error('[submitKintai] 登録失敗:', error);
+
+    if (error?.code === 'PERMISSION_DENIED') {
+      alert(
+        '予定を登録できませんでした。ログインユーザーと選択した社員の紐付けを確認してください。'
+      );
+    } else {
+      alert(`予定の登録に失敗しました: ${error.message}`);
+    }
+
+    return;
+  }
 
   // 入力リセット
   const sel = document.getElementById('employee');
@@ -1009,7 +1076,7 @@ async function applyEdit(){
     const snap = await get(entryRef);
     const old = snap.exists() ? snap.val() : null;
 
-    await set(entryRef, payloadNew);
+    await update(entryRef, payloadNew);
     await notifyAdmins('updated', { id, old, new: payloadNew }); // ← await 推奨
 
     closeModal();
@@ -1351,6 +1418,7 @@ function resetSelectedWeekdays() {
 // ===== 毎週ルール =====
 // 重要ポイント：weekday→weekdays（配列）/ “休業(closed)”はhoursを0に寄せる
 async function addWeeklyRule(){
+  const user = auth.currentUser;
   const ruleEmpEl   = document.getElementById('rule-employee');
   const employeeId  = ruleEmpEl.value;
   const weekdays    = getSelectedWeekdays();               // ← 複数
@@ -1360,6 +1428,11 @@ async function addWeeklyRule(){
   const hoursNum    = parseFloat(hoursRaw === '' ? 'NaN' : hoursRaw);
   const type        = document.getElementById('rule-type').value; // 'work'|'off'|'remote'|'closed'
   const note        = (document.getElementById('rule-note').value || '').trim();
+
+  if (!user) {
+    alert('ルールを登録するにはログインが必要です');
+    return;
+  }
 
   if(!employeeId || !startDate || !endDate){
     alert('社員・期間を入力してください');
@@ -1399,6 +1472,7 @@ async function addWeeklyRule(){
     hours: normalizedHours,
     type,                        // 'work' | 'off' | 'remote' | 'closed'
     note,
+    createdByUid: user.uid,
     createdAt: Date.now()
   };
 
@@ -1407,7 +1481,16 @@ async function addWeeklyRule(){
 
   // 既存エントリ重複チェック用セット（employeeId_date_type）
   const existing = new Set();
-  const kintaiSnap = await get(ref(db,'kintai'));
+
+  const existingRangeQuery = query(
+    ref(db, 'kintai'),
+    orderByChild('date'),
+    startAt(startDate),
+    endAt(endDate)
+  );
+
+  const kintaiSnap = await get(existingRangeQuery);
+
   if (kintaiSnap.exists()) {
     kintaiSnap.forEach(cs => {
       const v = cs.val();
@@ -1434,13 +1517,16 @@ async function addWeeklyRule(){
       const key = `${employeeId}_${ymd}_${type}`;
       if (!existing.has(key)) {
         await push(entriesRef, {
-          employeeId, employeeName,
+          employeeId, 
+          employeeName,
           date: ymd,
           start: '',
           hours: normalizedHours,          // “休業”は0
-          type, note,
+          type, 
+          note,
           viaRule: true,
           sourceRuleId: ruleId,
+          createdByUid: user.uid,
           createdAt: Date.now()
         });
         existing.add(key);
@@ -1471,27 +1557,47 @@ async function addWeeklyRule(){
 window.addWeeklyRule = addWeeklyRule;
 
 
-async function deleteKintaiByRule(ruleId){
+async function deleteKintaiByRule(ruleId) {
   if (!ruleId) return;
-  const snap = await get(ref(db, 'kintai'));
-  if (!snap.exists()) { alert('削除対象の予定がありません'); return; }
 
-  const targets = [];
-  snap.forEach(cs => {
-    const v = cs.val();
-    if (v.sourceRuleId === ruleId) targets.push({ id: cs.key, ...v });
-  });
+  const ruleKintaiQuery = query(
+    ref(db, 'kintai'),
+    orderByChild('sourceRuleId'),
+    equalTo(ruleId)
+  );
 
-  if (!targets.length) {
+  const snap = await get(ruleKintaiQuery);
+
+  if (!snap.exists()) {
     alert('このルール由来の予定は見つかりませんでした');
     return;
   }
 
-  if (!confirm(`ルールID: ${ruleId} 由来の予定 ${targets.length} 件を削除します。よろしいですか？`)) return;
+  const targets = [];
 
-  await Promise.all(targets.map(t => remove(ref(db, 'kintai/'+t.id))));
+  snap.forEach(cs => {
+    targets.push({
+      id: cs.key,
+      ...cs.val()
+    });
+  });
+
+  if (!confirm(
+    `ルールID: ${ruleId} 由来の予定 ${targets.length} 件を削除します。よろしいですか？`
+  )) {
+    return;
+  }
+
+  await Promise.all(
+    targets.map(t => remove(ref(db, 'kintai/' + t.id)))
+  );
+
   alert(`予定を ${targets.length} 件削除しました`);
-  notifyAdmins('rule-deleted', { ruleId, deletedCount: targets.length });
+
+  notifyAdmins('rule-deleted', {
+    ruleId,
+    deletedCount: targets.length
+  });
 }
 window.deleteKintaiByRule = deleteKintaiByRule;
 
