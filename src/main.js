@@ -1,6 +1,16 @@
 import { db, auth } from './firebase';
 import {
-  ref, push, onValue, remove, get, set, update, query, orderByChild
+  ref,
+  push,
+  onValue,
+  remove,
+  get,
+  set,
+  update,
+  query,
+  orderByChild,
+  startAt,
+  endAt
 } from 'firebase/database';
 import {
   onAuthStateChanged,
@@ -217,13 +227,17 @@ async function loadWebhookConfig(){
   window.NOTIFY_WEBHOOK_TOKEN = cfg.webhookToken;
 }
 
-try {
-  await loadWebhookConfig();
-} catch (error) {
-  console.warn(
-    '[通知設定] config.phpを取得できなかったため、通知なしで続行します。',
-    error
-  );
+if (import.meta.env.MODE === 'production') {
+  try {
+    await loadWebhookConfig();
+  } catch (error) {
+    console.warn(
+      '[通知設定] config.phpを取得できなかったため、通知なしで続行します。',
+      error
+    );
+  }
+} else {
+  console.info('[通知設定] dev環境では外部Webhookを使用しません。');
 }
 
 // ===============================
@@ -282,6 +296,9 @@ async function notifyAdmins(kind, payload) {
 // ---- 購読のハンドル ----
 let stopPublic = null;
 let stopPrivate = null;
+let stopKintai = null;
+let currentKintaiRangeKey = '';
+let calendar = null;
 
 // 公開購読（起動時に一度だけ開始）
 function startPublicSubscriptions() {
@@ -308,22 +325,98 @@ function startPrivateSubscriptions() {
 
   // 要認証のパス（employees）
   const q = query(ref(db, 'employees'), orderByChild('order'));
-  unsubs.push(onValue(q, (snap) => {
+    unsubs.push(onValue(q, (snap) => {
     empMap = {};
     empInfoMap = {};
-    if (snap.exists()) snap.forEach(c => {
-      const v = c.val() || {};
-      empMap[c.key] = v.name;
-      empInfoMap[c.key] = { name: v.name || '', email: v.email || '', sms: v.sms || '', isAdmin: !!v.isAdmin };
-    });
+
+    if (snap.exists()) {
+      snap.forEach(c => {
+        const v = c.val() || {};
+
+        empMap[c.key] = v.name;
+        empInfoMap[c.key] = {
+          name: v.name || '',
+          email: v.email || '',
+          sms: v.sms || '',
+          isAdmin: !!v.isAdmin
+        };
+      });
+    }
+
     employeesLoaded = true;
     refreshEmployeesUI(snap);
-    if (lastKintaiSnap) renderFromKintai(lastKintaiSnap);
+
+    if (lastKintaiSnap) {
+      renderFromKintai(lastKintaiSnap);
+    }
   }));
 
-    // 勤怠情報の監視
-  unsubs.push(onValue(
+  if (calendar?.view) {
+    const currentView = calendar.view;
+
+    subscribeKintaiForRange(
+      currentView.activeStart,
+      currentView.activeEnd
+    );
+  }
+
+  stopPrivate = () => {
+    unsubs.forEach(fn => fn());
+
+    if (stopKintai) {
+      stopKintai();
+      stopKintai = null;
+    }
+
+    currentKintaiRangeKey = '';
+    lastKintaiSnap = null;
+    stopPrivate = null;
+  };
+}
+
+function formatLocalDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+function subscribeKintaiForRange(start, endExclusive) {
+  if (!start || !endExclusive) return;
+
+  // FullCalendarの終了日は範囲外なので、1日前を最終日にする
+  const endInclusive = new Date(endExclusive);
+  endInclusive.setDate(endInclusive.getDate() - 1);
+
+  const startDate = formatLocalDate(start);
+  const endDate = formatLocalDate(endInclusive);
+  const rangeKey = `${startDate}_${endDate}`;
+
+  // 同じ期間を重複購読しない
+  if (stopKintai && currentKintaiRangeKey === rangeKey) {
+    return;
+  }
+
+  // 前の月・期間の購読を解除
+  if (stopKintai) {
+    stopKintai();
+    stopKintai = null;
+  }
+
+  currentKintaiRangeKey = rangeKey;
+
+  const kintaiQuery = query(
     ref(db, 'kintai'),
+    orderByChild('date'),
+    startAt(startDate),
+    endAt(endDate)
+  );
+
+  console.log(`[kintai] 購読期間: ${startDate} ～ ${endDate}`);
+
+  stopKintai = onValue(
+    kintaiQuery,
     (snap) => {
       lastKintaiSnap = snap;
 
@@ -332,11 +425,12 @@ function startPrivateSubscriptions() {
       }
     },
     (error) => {
-      console.error('[kintai] データの取得に失敗しました:', error);
+      console.error(
+        `[kintai] ${startDate} ～ ${endDate} の取得に失敗しました:`,
+        error
+      );
     }
-  ));
-
-  stopPrivate = () => { unsubs.forEach(fn => fn()); stopPrivate = null; };
+  );
 }
 
 // ===== 起動時に公開購読だけ開始 =====
@@ -354,13 +448,25 @@ onAuthStateChanged(auth, async (user) => {
     startPrivateSubscriptions();   // ここで private を開始
 
     // FCM（必要なら verified で条件付け）
-    await initMessaging();
-    setupOnMessage();
-    if (isVerified) {
-      await requestPermissionAndGetToken();
-    } else {
-      console.log('[FCM] skip: email not verified yet');
+  if (import.meta.env.MODE === 'production') {
+    try {
+      await initMessaging();
+      setupOnMessage();
+
+      if (isVerified) {
+        await requestPermissionAndGetToken();
+      } else {
+        console.log('[FCM] skip: email not verified yet');
+      }
+    } catch (error) {
+      console.warn(
+        '[FCM] プッシュ通知の初期化に失敗しました。通知なしで続行します。',
+        error
+      );
     }
+  } else {
+    console.info('[FCM] dev環境ではプッシュ通知登録を行いません。');
+  }
   } else {
     s && (s.textContent = '未ログイン');
     setWriteEnabled(false);
@@ -991,7 +1097,7 @@ function refreshHolidayEvents(calendar, info){
 }
 
 // ===== FullCalendar =====
-const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
+  calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
   initialView: 'dayGridMonth',
   locale: 'ja',
   height: 'auto',
@@ -1022,6 +1128,10 @@ const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), 
 
   // 月移動/初期表示のたびに祝日を読み込み→反映＆既存データ再描画
   datesSet: async (info) => {
+    if (stopPrivate) {
+      subscribeKintaiForRange(info.start, info.end);
+    }
+
     // この表示範囲に跨る可能性がある年を読み込み（前後も保険で）
     const years = new Set([info.start.getFullYear(), info.end.getFullYear()]);
     years.add(info.start.getFullYear() - 1);

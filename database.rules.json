@@ -1,9 +1,11 @@
 {
   "rules": {
     "admins": {
+      ".read": "auth != null && root.child('admins/' + auth.uid).val() === true",
+
       "$uid": {
-        ".read": false,
-        ".write": "auth != null && auth.uid === $uid"
+        ".write": "auth != null && root.child('admins/' + auth.uid).val() === true",
+        ".validate": "newData.val() === true"
       }
     },
 
@@ -29,6 +31,8 @@
     },
 
     "kintai": {
+      ".read": "auth != null && root.child('admins/' + auth.uid).val() === true",
+      ".indexOn": ["date"],
       "$entryId": {
         ".read": "auth != null && (root.child('admins/' + auth.uid).val() === true || root.child('usersByUid/' + auth.uid + '/employeeId').val() === data.child('employeeId').val())",
 
@@ -40,7 +44,16 @@
           newData.child('date').isString() &&
           newData.child('date').val().matches(/^\\d{4}-\\d{2}-\\d{2}$/) &&
           newData.child('type').isString() &&
-          newData.child('type').val() in ['work','off','remote','closed','paid','overtime','special','holiday'] &&
+            (
+              newData.child('type').val() === 'work' ||
+              newData.child('type').val() === 'off' ||
+              newData.child('type').val() === 'remote' ||
+              newData.child('type').val() === 'closed' ||
+              newData.child('type').val() === 'paid' ||
+              newData.child('type').val() === 'overtime' ||
+              newData.child('type').val() === 'special' ||
+              newData.child('type').val() === 'holiday'
+            ) &&
           (!newData.child('hours').exists() || newData.child('hours').isNumber()) &&
           (!newData.child('note').exists()  || (newData.child('note').isString() && newData.child('note').val().length <= 200))
         "
@@ -57,8 +70,14 @@
           newData.child('startDate').isString() &&
           newData.child('endDate').isString() &&
           newData.child('type').isString() &&
-          (!newData.child('weekdays').exists() || (newData.child('weekdays').isList() && newData.child('weekdays').val().length > 0))
-        "
+          (!newData.child('weekdays').exists() || newData.child('weekdays').child('0').exists())
+        ",
+
+        "weekdays": {
+          "$index": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 6"
+          }
+        }
       }
     },
 
