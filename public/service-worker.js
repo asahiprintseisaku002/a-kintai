@@ -1,5 +1,5 @@
 // service-worker.js
-const CACHE_NAME = 'kintai-pro-cache-v4';
+const CACHE_NAME = 'kintai-pro-cache-v5';
 
 // 更新即時適用
 self.addEventListener('message', (e) => {
@@ -14,9 +14,8 @@ const urlFromScope = (p) => new URL(p, scopeUrl).toString();
 const PRECACHE_URLS = [
   './',
   './index.html',
-  './style.css',
-  './app.js',
-  './manifest.json'
+  './icons/icon-192.png',
+  './icons/icon-512.png'
 ].map(urlFromScope);
 
 self.addEventListener('install', (event) => {

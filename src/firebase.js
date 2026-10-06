@@ -1,8 +1,7 @@
-// src/firebase.js
-import { initializeApp, getApps } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getDatabase } from "firebase/database";
-import { getMessaging, isSupported } from "firebase/messaging";
+import { initializeApp, getApps } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
+import { getDatabase } from 'firebase/database';
+import { getMessaging, isSupported } from 'firebase/messaging';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -14,15 +13,15 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-// すでに初期化済みなら再利用
-const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+const app = getApps().length
+  ? getApps()[0]
+  : initializeApp(firebaseConfig);
 
 const auth = getAuth(app);
 const db = getDatabase(app);
-const messaging = getMessaging(app);
 
-export { app, auth, db, messaging };
+async function getSupportedMessaging() {
+  return (await isSupported()) ? getMessaging(app) : null;
+}
 
-export const messagingPromise = isSupported().then(supported => {
-  return supported ? getMessaging(app) : null;
-});
+export { app, auth, db, firebaseConfig, getSupportedMessaging };

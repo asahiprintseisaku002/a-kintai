@@ -1,4 +1,9 @@
-import { db, auth } from './firebase';
+import {
+  db,
+  auth,
+  firebaseConfig,
+  getSupportedMessaging
+} from './firebase';
 import {
   ref,
   push,
@@ -23,9 +28,7 @@ import {
   setPersistence,
   browserLocalPersistence,
 } from 'firebase/auth';
-import {
-  getMessaging, getToken, onMessage, isSupported
-} from 'firebase/messaging';
+import { getToken, onMessage } from 'firebase/messaging';
 import { 
   createUserWithEmailAndPassword, 
   sendEmailVerification, 
@@ -166,36 +169,75 @@ await setPersistence(auth, browserLocalPersistence);
 
 document.getElementById('btn-logout')?.addEventListener('click', () => signOut(auth));
 
-onAuthStateChanged(auth, (user)=> {
-  document.getElementById('btn-login').style.display  = user ? 'none' : 'inline-block';
-  document.getElementById('btn-logout').style.display = user ? 'inline-block' : 'none';
-});
-
 // ===============================
 //  FCM 初期化（未対応環境に配慮）
 // ===============================
 let messaging = null;
-const VAPID_KEY = 'BB-1ckiTojBNB4f5RvrTgUSL75jP3K50GzjU9FdiLmTw7WkskKqhTFxfXCfSB3j2F-q9IKXpX6Ib5YTOGckS7AI';
+let stopOnMessage = null;
+const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+const FCM_ENABLED = import.meta.env.VITE_FCM_ENABLED === 'true';
 
 // サービスワーカー登録（存在しなければ登録）
 async function ensureServiceWorker() {
   if (!('serviceWorker' in navigator)) return null;
-  const existing = await navigator.serviceWorker.getRegistration('/');
-  if (existing) return existing;
 
-  // FCM 専用の SW を使う場合は firebase-messaging-sw.js を登録
-  // すでに PWA の service-worker.js を使う場合はそちらでも可
-  try {
-    return await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-  } catch {
-    // フォールバック：PWA側を登録
-    return await navigator.serviceWorker.register('/service-worker.js');
+  const params = new URLSearchParams({
+    config: JSON.stringify(firebaseConfig)
+  });
+
+  const registration = await navigator.serviceWorker.register(
+    `/firebase-messaging-sw.js?${params.toString()}`,
+    {
+      scope: '/firebase-cloud-messaging-push-scope/',
+      updateViaCache: 'none'
+    }
+  );
+
+  if (registration.active?.state === 'activated') {
+    return registration;
   }
+
+  const worker =
+    registration.installing ||
+    registration.waiting ||
+    registration.active;
+
+  if (!worker) {
+    throw new Error('FCM用Service Workerが見つかりません。');
+  }
+
+  await new Promise((resolve, reject) => {
+    const cleanup = () => {
+      clearTimeout(timer);
+      worker.removeEventListener('statechange', checkState);
+    };
+
+    const checkState = () => {
+      if (worker.state === 'activated') {
+        cleanup();
+        resolve();
+      } else if (worker.state === 'redundant') {
+        cleanup();
+        reject(new Error('FCM用Service Workerの有効化に失敗しました。'));
+      }
+    };
+
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error('FCM用Service Workerの有効化がタイムアウトしました。'));
+    }, 30000);
+
+    worker.addEventListener('statechange', checkState);
+    checkState();
+  });
+
+  return registration;
 }
 
 async function initMessaging() {
-  if (await isSupported()) {
-    messaging = getMessaging();
+  messaging = await getSupportedMessaging();
+
+  if (messaging) {
     console.log('[FCM] Messaging 初期化 OK');
   } else {
     console.log('[FCM] この環境ではWeb Push非対応');
@@ -229,8 +271,8 @@ async function requestPermissionAndGetToken() {
 }
 
 function setupOnMessage() {
-  if (!messaging) return;
-  onMessage(messaging, (payload) => {
+  if (!messaging || stopOnMessage) return;
+  stopOnMessage = onMessage(messaging, (payload) => {
     const title = payload.notification?.title || payload.data?.title || '通知';
     const body  = payload.notification?.body  || payload.data?.body  || '';
 
@@ -470,37 +512,60 @@ startPublicSubscriptions();
 onAuthStateChanged(auth, async (user) => {
   const s = document.getElementById('login-status');
 
-  if (user) {
-    const isVerified = !!user.emailVerified;
-    s && (s.textContent = `ログイン中: ${user.email || user.uid}${isVerified ? '' : '（メール未確認）'}`);
-    setWriteEnabled(true);
+  document.getElementById('btn-login').style.display =
+    user ? 'none' : 'inline-block';
 
-    startPrivateSubscriptions();   // ここで private を開始
+  document.getElementById('btn-logout').style.display =
+    user ? 'inline-block' : 'none';
 
-    // FCM（必要なら verified で条件付け）
-  if (import.meta.env.MODE === 'production') {
-    try {
-      await initMessaging();
-      setupOnMessage();
+  togglePrivateUI(!!user);
+  setWriteEnabled(!!user);
 
-      if (isVerified) {
-        await requestPermissionAndGetToken();
-      } else {
-        console.log('[FCM] skip: email not verified yet');
-      }
-    } catch (error) {
-      console.warn(
-        '[FCM] プッシュ通知の初期化に失敗しました。通知なしで続行します。',
-        error
-      );
-    }
-  } else {
-    console.info('[FCM] dev環境ではプッシュ通知登録を行いません。');
+  // 前のユーザーの購読と通知リスナーを停止する。
+  stopPrivate?.();
+  stopOnMessage?.();
+  stopOnMessage = null;
+
+  clearPrivateDisplay();
+
+  if (!user) {
+    if (s) s.textContent = '未ログイン';
+    return;
   }
-  } else {
-    s && (s.textContent = '未ログイン');
-    setWriteEnabled(false);
-    stopPrivate && stopPrivate();  // private 停止（public は維持）
+
+  const isVerified = !!user.emailVerified;
+
+  if (s) {
+    s.textContent =
+      `ログイン中: ${user.email || user.uid}` +
+      (isVerified ? '' : '（メール未確認）');
+  }
+
+  startPrivateSubscriptions();
+
+  if (!FCM_ENABLED) {
+    console.info('[FCM] この環境ではプッシュ通知登録を無効にしています。');
+    return;
+  }
+
+  try {
+    await initMessaging();
+
+    // 初期化中にログアウト・ユーザー切替があった場合は終了。
+    if (auth.currentUser !== user) return;
+
+    setupOnMessage();
+
+    if (isVerified) {
+      await requestPermissionAndGetToken();
+    } else {
+      console.info('[FCM] メール未確認のため通知登録を見送ります。');
+    }
+  } catch (error) {
+    console.warn(
+      '[FCM] プッシュ通知の初期化に失敗しました。通知なしで続行します。',
+      error
+    );
   }
 });
 
@@ -518,29 +583,35 @@ function togglePrivateUI(isLoggedIn) {
   });
 }
 
-onAuthStateChanged(auth, async (user) => {
-  togglePrivateUI(!!user);
+function clearPrivateDisplay() {
+  lastKintaiSnap = null;
+  latestMonthData = [];
+  monthListSorted = [];
+  currentPage = 1;
+  lastViewYmKey = '';
 
-  if (user) {
-    // 書き込み許可
-    setWriteEnabled(true);
-    startPrivateSubscriptions();
-  } else {
-    // 書き込み不可
-    setWriteEnabled(false);
-    stopPrivate && stopPrivate();
+  empMap = {};
+  empInfoMap = {};
+  employeesLoaded = false;
+
+  renderListPaged();
+
+  // 勤怠予定だけを消し、祝日は残す。
+  calendar?.getEvents()
+    .filter(event => event.classNames?.includes('kintai-event'))
+    .forEach(event => event.remove());
+
+  for (const id of ['employees', 'rule-list', 'summary']) {
+    document.getElementById(id)?.replaceChildren();
   }
-});
 
+  for (const id of ['employee', 'rule-employee', 'edit-employee']) {
+    document.getElementById(id)?.replaceChildren();
+  }
 
-// ページロード時に一度トークン取得を試す（任意でボタン連携に）
-document.addEventListener('DOMContentLoaded', () => {
-  requestPermissionAndGetToken();
-
-  const btn = document.getElementById('btn-enable-push');
-  if (btn) btn.addEventListener('click', () => requestPermissionAndGetToken());
-});
-
+  closeModal();
+  closeEmpModal();
+}
 
 const SHOULD_RELOAD_KEY = 'akintai_reload_once';
 // ===== タブ切替 =====

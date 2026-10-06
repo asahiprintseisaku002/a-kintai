@@ -443,6 +443,17 @@ button.danger:hover {
 }
 
 /* FullCalendar 色分け */
+#calendar .fc-event {
+    cursor: pointer;
+}
+
+.signup-note {
+    margin: 8px 0 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #555;
+}
+
 .fc-event.paid {
     background: #64b5f6 !important;
     border-color: #64b5f6 !important;

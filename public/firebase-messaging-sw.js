@@ -1,34 +1,47 @@
-// --- FCM (Web Push) 追加 ---
-// 互換版で最短実装（ESMでなく importScripts を使う）
-importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js');
+// 独自通知のクリック処理はFirebase SDKより先に登録する。
+self.addEventListener('notificationclick', (event) => {
+  // SDKが表示した通知のクリック処理はSDKに任せる。
+  if (event.notification.data?.FCM_MSG) return;
 
-firebase.initializeApp({
-  apiKey: "AIzaSyDeZBhMuZQGTFdl-BGNQuQpABj7-kuC794",
-  authDomain: "kintai-app-76bb7.firebaseapp.com",
-  projectId: "kintai-app-76bb7",
-  messagingSenderId: "1050791558955",
-  appId: "1:805510662959:web:5ce04c4b49e0ec9759efda",
+  event.notification.close();
+
+  const target = new URL(
+    event.notification.data?.url || '/',
+    self.location.origin
+  );
+
+  if (target.origin !== self.location.origin) return;
+
+  event.waitUntil(clients.openWindow(target.href));
 });
+
+importScripts(
+  'https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js'
+);
+importScripts(
+  'https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js'
+);
+
+const configText = new URL(self.location.href)
+  .searchParams.get('config');
+
+if (!configText) {
+  throw new Error('FCM用のFirebase設定がありません。');
+}
+
+firebase.initializeApp(JSON.parse(configText));
 
 const messaging = firebase.messaging();
 
-// バックグラウンド受信 → 通知表示
 messaging.onBackgroundMessage((payload) => {
-  const title = payload.notification?.title || payload.data?.title || '通知';
-  const options = {
-    body:  payload.notification?.body  || payload.data?.body  || '',
-    icon:  '/icons/icon-192.png',         // 任意
-    badge: '/icons/badge.png',            // 任意
-    data: { url: payload.data?.url || '/' } // クリックで開くURL
-  };
-  self.registration.showNotification(title, options);
-});
+  // notification付きの通知はSDKが表示するため、二重表示を避ける。
+  if (payload.notification) return;
 
-// 通知クリック時の遷移
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-  const url = event.notification?.data?.url || '/';
-  event.waitUntil(clients.openWindow(url));
+  const title = payload.data?.title || '通知';
+
+  return self.registration.showNotification(title, {
+    body: payload.data?.body || '',
+    icon: '/icons/icon-192.png',
+    data: { url: payload.data?.url || '/' }
+  });
 });
-// --- /FCM 追加ここまで ---
