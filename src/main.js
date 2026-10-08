@@ -257,11 +257,15 @@ async function requestPermissionAndGetToken() {
   if (!token) return null;
 
   try {
-    await set(ref(db, 'fcmTokens/' + token), {
-      active: true,
-      ua: navigator.userAgent,
-      updatedAt: Date.now()
-    });
+        const user = auth.currentUser;
+        if (!user) return null;
+
+        await set(ref(db, 'fcmTokens/' + token), {
+          uid: user.uid,
+          active: true,
+          ua: navigator.userAgent,
+          updatedAt: Date.now()
+        });
     console.log('[FCM] token saved');
   } catch (e) {
     console.warn('[FCM] failed to save token:', e);
@@ -287,79 +291,6 @@ function setupOnMessage() {
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 5000);
   });
-}
-
-// ===============================
-//  Webhook 設定のロード
-// ===============================
-async function loadWebhookConfig(){
-  const res = await fetch('https://bmsys777.xsrv.jp/a-kintai/config.php', { cache: 'no-store' });
-  const cfg = await res.json();
-  window.NOTIFY_WEBHOOK_URL   = cfg.webhookUrl;
-  window.NOTIFY_WEBHOOK_TOKEN = cfg.webhookToken;
-}
-
-if (import.meta.env.MODE === 'production') {
-  try {
-    await loadWebhookConfig();
-  } catch (error) {
-    console.warn(
-      '[通知設定] config.phpを取得できなかったため、通知なしで続行します。',
-      error
-    );
-  }
-} else {
-  console.info('[通知設定] dev環境では外部Webhookを使用しません。');
-}
-
-// ===============================
-//  ユーティリティなど（既存）
-// ===============================
-
-const GMAIL_ONLY = false;
-const isGmail = (email) => /@gmail\.com$|@googlemail\.com$/i.test(String(email||'').trim());
-
-async function getAdminsWithEmail(db){
-  const snap = await get(ref(db, 'employees'));
-  const admins = [];
-  if (snap.exists()) {
-    snap.forEach(c => {
-      const v = c.val() || {};
-      if (v.isAdmin && v.email) {
-        if (!GMAIL_ONLY || isGmail(v.email)) {
-          admins.push({ id: c.key, name: v.name || '', email: String(v.email).trim() });
-        }
-      }
-    });
-  }
-  return admins;
-}
-
-async function notifyAdmins(kind, payload) {
-  if (!window.NOTIFY_WEBHOOK_URL || !window.NOTIFY_WEBHOOK_TOKEN) return;
-  const admins = await getAdminsWithEmail(db);
-  if (!admins.length) return;
-
-  const buildUrl = (to) => {
-    const u = new URL(window.NOTIFY_WEBHOOK_URL);
-    u.searchParams.set('token',   String(window.NOTIFY_WEBHOOK_TOKEN || ''));
-    u.searchParams.set('kind',    String(kind || 'notify'));
-    u.searchParams.set('to',      JSON.stringify(to));
-    u.searchParams.set('payload', JSON.stringify(payload || {}));
-    u.searchParams.set('src_host', location.host);
-    u.searchParams.set('build', 'GET-IMG-2025-08-20');
-    u.searchParams.set('v', String(Date.now()));
-    return u.toString();
-  };
-
-  const tasks = admins.map(a => {
-    const img = new Image();
-    img.referrerPolicy = 'no-referrer';
-    img.src = buildUrl({ name: a.name, email: a.email });
-    window.__lastPing = img;
-    return Promise.resolve();
-  });
-  await Promise.allSettled(tasks);
 }
 
 // ===============================
@@ -1009,7 +940,6 @@ async function submitKintai(){
     await push(ref(db, 'kintai'), payload);
 
     alert('登録しました');
-    await notifyAdmins('created', payload);
   } catch (error) {
     console.error('[submitKintai] 登録失敗:', error);
 
@@ -1052,10 +982,6 @@ async function deleteEntry(id){
     // 3) 実データ削除
     await remove(entryRef);
 
-    // 4) 通知（GET 画像ピクセル版 notifyAdmins を既に採用している前提）
-    await notifyAdmins('deleted', { id, old });
-
-    console.log('[deleteEntry] notified deleted:', { id });
     alert('削除しました');
   } catch (e) {
     console.error('[deleteEntry] error', e);
@@ -1148,7 +1074,6 @@ async function applyEdit(){
     const old = snap.exists() ? snap.val() : null;
 
     await update(entryRef, payloadNew);
-    await notifyAdmins('updated', { id, old, new: payloadNew }); // ← await 推奨
 
     closeModal();
   } catch (e) {
@@ -1609,12 +1534,6 @@ async function addWeeklyRule(){
 
   alert(`ルールを追加し、${startDate}〜${endDate} に ${added} 件展開しました。`);
 
-  // 通知（payloadを最新スキーマに）
-  notifyAdmins('rule-expanded', {
-    ruleId, employeeId, employeeName, startDate, endDate,
-    weekdays, hours: normalizedHours, type, note, added
-  });
-
   // 入力リセット
   ruleEmpEl.value = '';
   if (ruleEmpEl.value !== '') ruleEmpEl.selectedIndex = 0;
@@ -1664,11 +1583,6 @@ async function deleteKintaiByRule(ruleId) {
   );
 
   alert(`予定を ${targets.length} 件削除しました`);
-
-  notifyAdmins('rule-deleted', {
-    ruleId,
-    deletedCount: targets.length
-  });
 }
 window.deleteKintaiByRule = deleteKintaiByRule;
 
