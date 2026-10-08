@@ -27,6 +27,55 @@ function isInvalidTokenError(err) {
          msg.includes('sender');
 }
 
+async function canReceiveAttendance(uid) {
+  try {
+    const user = await admin.auth().getUser(uid);
+
+    if (user.disabled || !user.emailVerified) {
+      return false;
+    }
+
+    const adminSnap = await admin.database()
+      .ref(`admins/${uid}`)
+      .get();
+
+    if (adminSnap.val() === true) {
+      return true;
+    }
+
+    const employeeIdSnap = await admin.database()
+      .ref(`usersByUid/${uid}/employeeId`)
+      .get();
+
+    const employeeId = employeeIdSnap.val();
+
+    if (
+      typeof employeeId !== 'string' ||
+      !employeeId ||
+      /[.#$\[\]\/]/.test(employeeId)
+    ) {
+      return false;
+    }
+
+    const employeeSnap = await admin.database()
+      .ref(`employees/${employeeId}`)
+      .get();
+
+    return employeeSnap.exists();
+  } catch (error) {
+    // 確認できないユーザーには配信しない。
+    functions.logger.warn(
+      'Notification authorization check failed.',
+      {
+        uid,
+        code: error.code || 'unknown'
+      }
+    );
+
+    return false;
+  }
+}
+
 async function sendToAllActive(kind, v) {
   const snap = await admin.database().ref('fcmTokens').get();
   if (!snap.exists()) {
@@ -34,19 +83,47 @@ async function sendToAllActive(kind, v) {
     return;
   }
   const all = snap.val() || {};
-  const tokens = Object.keys(all).filter(t => all[t]?.active !== false);
+  const tokens = [];
+  const tokenOwners = new Map();
+
+  for (const [uid, devices] of Object.entries(all)) {
+    if (
+      !devices ||
+      typeof devices !== 'object' ||
+      Array.isArray(devices)
+    ) {
+      continue;
+    }
+
+    if (!(await canReceiveAttendance(uid))) {
+      continue;
+    }
+
+    for (const [token, device] of Object.entries(devices)) {
+      if (
+        !device ||
+        typeof device !== 'object' ||
+        device.active !== true
+      ) {
+        continue;
+      }
+
+      // 同じトークンが複数UIDに登録されていても送信は1回。
+      if (!tokenOwners.has(token)) {
+        tokens.push(token);
+        tokenOwners.set(token, []);
+      }
+
+      tokenOwners.get(token).push(uid);
+    }
+  }
   if (!tokens.length) {
     functions.logger.info('No active tokens.');
     return;
   }
 
-  const title =
-      kind === 'created' ? `新しい予定: ${v.employeeName || '社員'}`
-    : kind === 'updated' ? `予定を更新: ${v.employeeName || '社員'}`
-    : kind === 'deleted' ? `予定を削除: ${v.employeeName || '社員'}`
-    : '勤怠通知';
-
-  const body = `${v.date} ${typeJa(v.type)} ${v.hours || 0}h${v.note ? ` – ${v.note}` : ''}`;
+  const title = '勤怠予定が変更されました';
+  const body = '詳細はアプリにログインして確認してください。';
 
   let success = 0, failure = 0;
   const invalids = [];
@@ -68,7 +145,17 @@ async function sendToAllActive(kind, v) {
   }
   functions.logger.info(`FCM sent: success=${success}, failure=${failure}, invalids=${invalids.length}`);
   if (invalids.length) {
-    await Promise.all(invalids.map(t => admin.database().ref(`fcmTokens/${t}`).remove().catch(() => {})));
+    const updates = {};
+
+    for (const token of invalids) {
+      for (const uid of tokenOwners.get(token) || []) {
+        updates[`fcmTokens/${uid}/${token}`] = null;
+      }
+    }
+
+    if (Object.keys(updates).length) {
+      await admin.database().ref().update(updates);
+    }
   }
 }
 

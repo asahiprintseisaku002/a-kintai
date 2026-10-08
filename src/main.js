@@ -258,14 +258,17 @@ async function requestPermissionAndGetToken() {
 
   try {
         const user = auth.currentUser;
-        if (!user) return null;
+        // 通知許可・トークン取得中にログアウトや切替があった場合は保存しない。
+        if (auth.currentUser !== user) return null;
 
-        await set(ref(db, 'fcmTokens/' + token), {
-          uid: user.uid,
-          active: true,
-          ua: navigator.userAgent,
-          updatedAt: Date.now()
-        });
+        await set(
+          ref(db, `fcmTokens/${user.uid}/${token}`),
+          {
+            active: true,
+            ua: navigator.userAgent,
+            updatedAt: Date.now()
+          }
+        );
     console.log('[FCM] token saved');
   } catch (e) {
     console.warn('[FCM] failed to save token:', e);
@@ -297,29 +300,11 @@ function setupOnMessage() {
 //  認証状態に応じて DB 購読の開始/停止
 // ===============================
 // ---- 購読のハンドル ----
-let stopPublic = null;
 let stopPrivate = null;
 let stopKintai = null;
+let lastWeeklyRulesSnap = null;
 let currentKintaiRangeKey = '';
 let calendar = null;
-
-// 公開購読（起動時に一度だけ開始）
-function startPublicSubscriptions() {
-  if (stopPublic) return;
-  const unsubs = [];
-
-  unsubs.push(onValue(ref(db, 'weeklyRules'), (snap) => {
-    // 週ルールの描画があるならここに
-    // ruleList を再描画する既存処理を呼ぶ等
-  }));
-
-  // 公開の社員情報を持つならここで
-  // unsubs.push(onValue(ref(db, 'employees_public'), ...));
-
-  stopPublic = () => { 
-    unsubs.forEach(fn => fn()); 
-    stopPublic = null; };
-}
 
 // プライベート購読（ログイン後に開始・ログアウトで停止）
 function startPrivateSubscriptions() {
@@ -349,9 +334,22 @@ function startPrivateSubscriptions() {
     employeesLoaded = true;
     refreshEmployeesUI(snap);
 
+    if (lastWeeklyRulesSnap) {
+      renderWeeklyRules(lastWeeklyRulesSnap);
+    }
+
     if (lastKintaiSnap) {
       renderFromKintai(lastKintaiSnap);
     }
+  }));
+
+  unsubs.push(onValue(ref(db, 'weeklyRules'), (snap) => {
+    lastWeeklyRulesSnap = snap;
+    renderWeeklyRules(snap);
+  }, (error) => {
+    lastWeeklyRulesSnap = null;
+    document.getElementById('rule-list')?.replaceChildren();
+    console.error('[weeklyRules] 取得に失敗しました:', error);
   }));
 
   if (calendar?.view) {
@@ -436,9 +434,6 @@ function subscribeKintaiForRange(start, endExclusive) {
   );
 }
 
-// ===== 起動時に公開購読だけ開始 =====
-startPublicSubscriptions();
-
 // ===== 認証状態 =====
 onAuthStateChanged(auth, async (user) => {
   const s = document.getElementById('login-status');
@@ -515,6 +510,7 @@ function togglePrivateUI(isLoggedIn) {
 }
 
 function clearPrivateDisplay() {
+  lastWeeklyRulesSnap = null;
   lastKintaiSnap = null;
   latestMonthData = [];
   monthListSorted = [];
@@ -615,16 +611,37 @@ function renderListPaged(){
     const title = `${empName}：${label} ${showHoursText}` + (v.note?.trim() ? ` – ${v.note}` : '');
 
     const li = document.createElement('li');
-    li.innerHTML = `
-      <span>${dateLabel} ${v.start || ''} ${title}</span>
-      <span class="item-actions">
-        <button onclick="openModal(${JSON.stringify({
-          employeeId:v.employeeId,
-          employeeName: empName,
-          date:v.date, start:v.start, hours:v.hours, type:v.type, note:v.note
-        }).replace(/"/g,'&quot;')}, '${v.id}')">編集</button>
-        <button class="danger" onclick="deleteEntry('${v.id}')">削除</button>
-      </span>`;
+    const text = document.createElement('span');
+    text.textContent = `${dateLabel} ${v.start || ''} ${title}`;
+
+    const actions = document.createElement('span');
+    actions.className = 'item-actions';
+
+    const editButton = document.createElement('button');
+    editButton.type = 'button';
+    editButton.textContent = '編集';
+    editButton.addEventListener('click', () => {
+      openModal({
+        employeeId: v.employeeId,
+        employeeName: empName,
+        date: v.date,
+        start: v.start,
+        hours: v.hours,
+        type: v.type,
+        note: v.note
+      }, v.id);
+    });
+
+    const deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.className = 'danger';
+    deleteButton.textContent = '削除';
+    deleteButton.addEventListener('click', () => {
+      deleteEntry(v.id);
+    });
+
+    actions.append(editButton, deleteButton);
+    li.append(text, actions);
     ul.appendChild(li);
   });
 
@@ -787,23 +804,62 @@ function refreshEmployeesUI(snapshot){
     ruleEmpSel.appendChild(opt.cloneNode(true));
     editEmpSel.appendChild(opt.cloneNode(true));
 
-    // 一覧
-    const li = document.createElement('li');
-    li.dataset.id = id;
-    li.classList.add('emp-item');
-    li.innerHTML = `
-      <span class="emp-line">
-        <span class="drag" title="ドラッグで並び替え">⠿</span>
-        <span class="emp-name">${name}</span>
-        ${isAdmin ? '<span class="badge-admin">管理者</span>' : ''}
-        ${email ? `<span class="emp-contact">📧 ${email}</span>` : ''}
-        ${sms   ? `<span class="emp-contact">📱 ${sms}</span>`   : ''}
-      </span>
-      <span>
-        <button onclick="openEmpModal('${id}')">編集</button>
-        <button class="danger" onclick="deleteEmployee('${id}')">削除</button>
-      </span>`;
-    list.appendChild(li);
+  // 一覧
+  const li = document.createElement('li');
+  li.dataset.id = id;
+  li.classList.add('emp-item');
+
+  const line = document.createElement('span');
+  line.className = 'emp-line';
+
+  const drag = document.createElement('span');
+  drag.className = 'drag';
+  drag.title = 'ドラッグで並び替え';
+  drag.textContent = '⠿';
+
+  const nameSpan = document.createElement('span');
+  nameSpan.className = 'emp-name';
+  nameSpan.textContent = name ?? '';
+
+  line.append(drag, nameSpan);
+
+  if (isAdmin) {
+    const badge = document.createElement('span');
+    badge.className = 'badge-admin';
+    badge.textContent = '管理者';
+    line.appendChild(badge);
+  }
+
+  if (email) {
+    const emailSpan = document.createElement('span');
+    emailSpan.className = 'emp-contact';
+    emailSpan.textContent = `📧 ${email}`;
+    line.appendChild(emailSpan);
+  }
+
+  if (sms) {
+    const smsSpan = document.createElement('span');
+    smsSpan.className = 'emp-contact';
+    smsSpan.textContent = `📱 ${sms}`;
+    line.appendChild(smsSpan);
+  }
+
+  const actions = document.createElement('span');
+
+  const editButton = document.createElement('button');
+  editButton.type = 'button';
+  editButton.textContent = '編集';
+  editButton.addEventListener('click', () => openEmpModal(id));
+
+  const deleteButton = document.createElement('button');
+  deleteButton.type = 'button';
+  deleteButton.className = 'danger';
+  deleteButton.textContent = '削除';
+  deleteButton.addEventListener('click', () => deleteEmployee(id));
+
+  actions.append(editButton, deleteButton);
+  li.append(line, actions);
+  list.appendChild(li);
   });
 
   initEmployeeSortable();
@@ -1385,19 +1441,62 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-function renderSummary(sums){
+function renderSummary(sums) {
   const box = document.getElementById('summary');
-  if(!sums || Object.keys(sums).length===0){
-    box.innerHTML = '<p>今月のデータはまだありません。</p>';
+  box.replaceChildren();
+
+  if (!sums || Object.keys(sums).length === 0) {
+    const message = document.createElement('p');
+    message.textContent = '今月のデータはまだありません。';
+    box.appendChild(message);
     return;
   }
-  let html = '<table><thead><tr><th>社員</th><th>合計h</th><th>有給h</th><th>残業h</th><th>特別h</th><th>休日出勤h</th></tr></thead><tbody>';
-  const fmt = n => (Math.round(n*10)/10).toFixed(1);
-  Object.values(sums).forEach(s=>{
-    html += `<tr><td>${s.name}</td><td>${fmt(s.total)}</td><td>${fmt(s.paid)}</td><td>${fmt(s.overtime)}</td><td>${fmt(s.special)}</td><td>${fmt(s.holiday)}</td></tr>`;
-  });
-  html += '</tbody></table>';
-  box.innerHTML = html;
+
+  const table = document.createElement('table');
+  const thead = document.createElement('thead');
+  const headerRow = document.createElement('tr');
+
+  for (const label of [
+    '社員',
+    '合計h',
+    '有給h',
+    '残業h',
+    '特別h',
+    '休日出勤h'
+  ]) {
+    const th = document.createElement('th');
+    th.textContent = label;
+    headerRow.appendChild(th);
+  }
+
+  thead.appendChild(headerRow);
+
+  const tbody = document.createElement('tbody');
+  const fmt = n => (Math.round(n * 10) / 10).toFixed(1);
+
+  for (const s of Object.values(sums)) {
+    const row = document.createElement('tr');
+
+    const values = [
+      s.name ?? '',
+      fmt(s.total),
+      fmt(s.paid),
+      fmt(s.overtime),
+      fmt(s.special),
+      fmt(s.holiday)
+    ];
+
+    for (const value of values) {
+      const td = document.createElement('td');
+      td.textContent = value;
+      row.appendChild(td);
+    }
+
+    tbody.appendChild(row);
+  }
+
+  table.append(thead, tbody);
+  box.appendChild(table);
 }
 
 // ユーティリティ：チェックされた曜日配列を取得（0=日,1=月,...6=土）
@@ -1547,44 +1646,66 @@ async function addWeeklyRule(){
 window.addWeeklyRule = addWeeklyRule;
 
 
-async function deleteKintaiByRule(ruleId) {
-  if (!ruleId) return;
+const deletingRuleIds = new Set();
 
-  const ruleKintaiQuery = query(
-    ref(db, 'kintai'),
-    orderByChild('sourceRuleId'),
-    equalTo(ruleId)
-  );
+async function deleteRuleAndEntries(ruleId) {
+  if (!ruleId || deletingRuleIds.has(ruleId)) return;
 
-  const snap = await get(ruleKintaiQuery);
-
-  if (!snap.exists()) {
-    alert('このルール由来の予定は見つかりませんでした');
+  if (!auth.currentUser) {
+    alert('ログインしてください');
     return;
   }
 
-  const targets = [];
+  deletingRuleIds.add(ruleId);
 
-  snap.forEach(cs => {
-    targets.push({
-      id: cs.key,
-      ...cs.val()
+  try {
+    const ruleRef = ref(db, 'weeklyRules/' + ruleId);
+    const ruleSnap = await get(ruleRef);
+
+    if (!ruleSnap.exists()) {
+      alert('ルールが見つかりません。画面を再読み込みしてください。');
+      return;
+    }
+
+    const entriesQuery = query(
+      ref(db, 'kintai'),
+      orderByChild('sourceRuleId'),
+      equalTo(ruleId)
+    );
+
+    const entriesSnap = await get(entriesQuery);
+    const count = entriesSnap.size;
+
+    if (!confirm(
+      `このルールと、このルールから作成された予定 ${count} 件を削除します。\n` +
+      '過去・未来の予定を含みます。よろしいですか？'
+    )) {
+      return;
+    }
+
+    const updates = {
+      [`weeklyRules/${ruleId}`]: null
+    };
+
+    entriesSnap.forEach(child => {
+      updates[`kintai/${child.key}`] = null;
     });
-  });
 
-  if (!confirm(
-    `ルールID: ${ruleId} 由来の予定 ${targets.length} 件を削除します。よろしいですか？`
-  )) {
-    return;
+    // 予定とルールを1回の更新で削除する。
+    await update(ref(db), updates);
+
+    alert(`ルールと予定 ${count} 件を削除しました。`);
+  } catch (error) {
+    console.error('[deleteRuleAndEntries]', error);
+
+    alert(
+      '削除できませんでした。\n' +
+      '一括削除は確定していません。権限や通信状態を確認してください。'
+    );
+  } finally {
+    deletingRuleIds.delete(ruleId);
   }
-
-  await Promise.all(
-    targets.map(t => remove(ref(db, 'kintai/' + t.id)))
-  );
-
-  alert(`予定を ${targets.length} 件削除しました`);
 }
-window.deleteKintaiByRule = deleteKintaiByRule;
 
 // 週の日本語表記ヘルパ
 function formatWeekdays(v){
@@ -1611,35 +1732,51 @@ function typeLabelJP(t){
          t === 'holiday'  ? '休日出勤' : (t || '');
 }
 
-const ruleList = document.getElementById('rule-list');
-onValue(ref(db,'weeklyRules'), (snap)=>{
-  ruleList.innerHTML='';
-  snap.forEach(c=>{
+function renderWeeklyRules(snap) {
+  const ruleList = document.getElementById('rule-list');
+  ruleList.replaceChildren();
+
+  snap.forEach(c => {
     const id = c.key;
-    const v  = c.val();
-    const name = v.employeeName || (empMap[v.employeeId] || '社員');
+    const v = c.val();
+    const name = v.employeeName || empMap[v.employeeId] || '社員';
 
     const wkStr = formatWeekdays(v);
     const typeJa = typeLabelJP(v.type);
-    const hoursText = (v.type === 'closed') ? '0h' : `${v.hours || 0}h`;
+    const hoursText =
+      v.type === 'closed' ? '0h' : `${v.hours || 0}h`;
 
     const li = document.createElement('li');
-    //li.className = 'rule-item compact';
-    li.innerHTML = `
-      <span>
-        社員: ${name}（ID:${v.employeeId}） 週:${wkStr}
-        期間:${v.startDate}〜${v.endDate} 種別:${typeJa} ${hoursText}
-        ${v.note ? ' ※' + v.note : ''}
-      </span>
-      <span>
-        <button class="danger" onclick="deleteKintaiByRule('${id}')">予定一括削除</button>
-        <button class="danger" onclick="removeRule('${id}')">ルール削除</button>
-      </span>`;
+
+    const text = document.createElement('span');
+    text.textContent =
+      `社員: ${name}（ID:${v.employeeId}） 週:${wkStr} ` +
+      `期間:${v.startDate}〜${v.endDate} ` +
+      `種別:${typeJa} ${hoursText}` +
+      (v.note ? ` ※${v.note}` : '');
+
+    const actions = document.createElement('span');
+
+    const deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.className = 'danger';
+    deleteButton.textContent = 'ルールと予定の削除';
+
+    deleteButton.addEventListener('click', async () => {
+      deleteButton.disabled = true;
+
+      try {
+        await deleteRuleAndEntries(id);
+      } finally {
+        deleteButton.disabled = false;
+      }
+    });
+
+    actions.appendChild(deleteButton);
+    li.append(text, actions);
     ruleList.appendChild(li);
   });
-});
-function removeRule(id){ if(confirm('このルールを削除しますか？')) remove(ref(db,'weeklyRules/'+id)); }
-window.removeRule = removeRule;
+}
 
 // ===== Excel エクスポート（今月・社員別シート） =====
 document.getElementById('btn-export-xlsx').addEventListener('click', () => {
